@@ -274,7 +274,7 @@ const P1_COLORS = ['#FAC775','#EF9F27','#E24B4A','#7F77DD'];
 const P2_COLORS = ['#9FE1CB','#1D9E75','#378ADD','#534AB7'];
 const DENSITY_NAMES = ['low-rise','mid-rise','high-rise','tower'];
 
-let board, currentPlayer, selectedTile, gameOver, inventory;
+let board, currentPlayer, selectedTile = 'settle', gameOver, inventory;
 let myPlayer = 0; // 0 = local, 1 = player 1, 2 = player 2
 let roomCode = null;
 let roomRef = null;
@@ -385,6 +385,8 @@ function startOnlineGame() {
       statusEl.innerHTML = '<span class="connection-dot disconnected"></span> Opponent disconnected';
     }
   });
+
+  selectTile('settle', document.querySelector('.tile-btn[data-type="settle"]'));
 }
 
 function startLocalGame() {
