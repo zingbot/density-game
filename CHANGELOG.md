@@ -2,6 +2,10 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.7.2 — 2026-06-14
+
+- Parks boost both players' adjacent buildings (removed owner-only restriction)
+
 ## v0.6 — 2026-06-14
 
 - Expanded grid to 20×20 (from 15×15)

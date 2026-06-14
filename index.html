@@ -603,7 +603,7 @@ function handleClick(r, c) {
     const boosted = [];
     for (const [nr, nc] of getNeighbors(r, c)) {
       const nb = board[nr][nc];
-      if (nb && nb.type === 'settle' && nb.player === currentPlayer && nb.density < 4) {
+      if (nb && nb.type === 'settle' && nb.density < 4) {
         nb.density += 1;
         boosted.push({ r: nr, c: nc, newDensity: nb.density, player: nb.player });
         if (nb.density === 4) {
