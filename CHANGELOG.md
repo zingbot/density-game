@@ -2,6 +2,10 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.7.3 — 2026-06-14
+
+- Added a subtle version label to the bottom of the UI
+
 ## v0.7.2 — 2026-06-14
 
 - Parks boost both players' adjacent buildings (removed owner-only restriction)
