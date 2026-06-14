@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Density — City Building Game</title>
+  <title>Density — Multiplayer</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
   <style>
     :root {
       --bg-primary: #ffffff;
@@ -16,6 +18,7 @@
       --border-tertiary: #eeeeee;
       --radius-md: 6px;
       --radius-lg: 10px;
+      --accent: #EF9F27;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -42,9 +45,60 @@
     #game-root { max-width: 700px; width: 100%; user-select: none; }
     h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
     .subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 1rem; }
+
+    /* Lobby */
+    #lobby { max-width: 400px; margin: 2rem auto; }
+    .lobby-section { margin-bottom: 1.5rem; }
+    .lobby-section h2 { font-size: 16px; font-weight: 500; margin-bottom: 8px; }
+    .lobby-section p { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+    .lobby-btn {
+      display: block; width: 100%; padding: 12px; border-radius: var(--radius-md);
+      border: 1px solid var(--border-secondary); background: var(--bg-primary);
+      cursor: pointer; font-size: 14px; color: var(--text-primary);
+      transition: background 0.1s;
+    }
+    .lobby-btn:hover { background: var(--bg-secondary); }
+    .lobby-btn.primary { background: var(--accent); color: white; border-color: var(--accent); font-weight: 500; }
+    .lobby-btn.primary:hover { filter: brightness(1.1); }
+    .lobby-input {
+      width: 100%; padding: 10px 12px; border-radius: var(--radius-md);
+      border: 1px solid var(--border-secondary); background: var(--bg-primary);
+      font-size: 14px; color: var(--text-primary); margin-bottom: 8px;
+      text-transform: uppercase; letter-spacing: 2px; text-align: center;
+    }
+    .lobby-input::placeholder { text-transform: none; letter-spacing: 0; }
+    .room-code-display {
+      padding: 16px; border-radius: var(--radius-lg); background: var(--bg-secondary);
+      text-align: center; margin-bottom: 12px;
+    }
+    .room-code-display .code { font-size: 28px; font-weight: 600; letter-spacing: 4px; margin-bottom: 4px; }
+    .room-code-display .hint { font-size: 12px; color: var(--text-tertiary); }
+    .waiting { font-size: 13px; color: var(--text-secondary); text-align: center; }
+    .waiting::after { content: ''; animation: dots 1.5s steps(4) infinite; }
+    @keyframes dots { 0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%{content:'...'} }
+    .lobby-divider { text-align: center; color: var(--text-tertiary); font-size: 12px; margin: 1.5rem 0; position: relative; }
+    .lobby-divider::before, .lobby-divider::after {
+      content: ''; position: absolute; top: 50%; width: 40%; height: 1px; background: var(--border-tertiary);
+    }
+    .lobby-divider::before { left: 0; }
+    .lobby-divider::after { right: 0; }
+    .error-msg { font-size: 12px; color: #E24B4A; margin-top: 8px; text-align: center; }
+    .connection-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 8px; border-radius: 12px; font-size: 11px;
+      background: var(--bg-secondary); color: var(--text-secondary);
+    }
+    .connection-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .connection-dot.connected { background: #16a766; }
+    .connection-dot.disconnected { background: #E24B4A; }
+
+    /* Game */
+    #game-area { display: none; }
     #status-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
     .player-panel { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius-lg); border: 1.5px solid transparent; transition: border-color 0.15s; background: var(--bg-secondary); min-width: 170px; }
     .player-panel.active { border-color: var(--accent); background: var(--bg-primary); }
+    .player-panel.you { position: relative; }
+    .you-badge { position: absolute; top: -6px; right: -6px; background: var(--accent); color: white; font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 8px; }
     .player-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     .player-name { font-size: 13px; font-weight: 500; }
     .player-info { font-size: 11px; color: var(--text-secondary); line-height: 1.4; }
@@ -70,6 +124,7 @@
     .cell.river:hover { transform: none; }
     .cell.park-cell { color: rgba(255,255,255,0.8); font-size: 12px; }
     .cell.upgraded { animation: pulse 0.35s ease; }
+    .cell.disabled { cursor: not-allowed; opacity: 0.85; }
     @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.22)} }
     #legend { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 0; align-items: center; font-size: 11px; color: var(--text-secondary); }
     .leg-item { display: flex; align-items: center; gap: 4px; }
@@ -77,10 +132,13 @@
     .leg-div { width: 1px; height: 12px; background: var(--border-tertiary); margin: 0 3px; }
     #msg { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; min-height: 16px; }
     #winner-banner { display: none; padding: 12px; border-radius: var(--radius-lg); text-align: center; margin-bottom: 10px; font-size: 15px; font-weight: 500; border: 1.5px solid; }
-    button#reset-btn { padding: 5px 12px; border-radius: var(--radius-md); border: 1px solid var(--border-secondary); background: var(--bg-primary); cursor: pointer; font-size: 12px; color: var(--text-primary); }
-    button#reset-btn:hover { background: var(--bg-secondary); }
+    button#leave-btn { padding: 5px 12px; border-radius: var(--radius-md); border: 1px solid var(--border-secondary); background: var(--bg-primary); cursor: pointer; font-size: 12px; color: var(--text-primary); }
+    button#leave-btn:hover { background: var(--bg-secondary); }
     #turn-indicator { font-size: 12px; color: var(--text-secondary); text-align: center; }
     .rule-box { font-size: 11px; color: var(--text-tertiary); margin-top: 8px; line-height: 1.55; }
+    #room-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+    #room-header .room-info { font-size: 12px; color: var(--text-tertiary); }
+    #room-header .room-info strong { color: var(--text-secondary); letter-spacing: 1px; }
   </style>
 </head>
 <body>
@@ -88,105 +146,376 @@
   <h1>Density</h1>
   <p class="subtitle">Two developers battle to build the first tower.</p>
 
-  <div id="winner-banner"></div>
-  <div id="status-bar">
-    <div class="player-panel active" id="p1-panel" style="--accent:#EF9F27">
-      <div class="player-dot" style="background:#EF9F27"></div>
-      <div>
-        <div class="player-name">Developer 1</div>
-        <div class="player-info" id="p1-info">0 buildings · 3 parks</div>
+  <!-- LOBBY -->
+  <div id="lobby">
+    <div class="lobby-section">
+      <h2>Create a game</h2>
+      <p>Start a new room and share the code with your opponent.</p>
+      <button class="lobby-btn primary" onclick="createRoom()">Create room</button>
+    </div>
+
+    <div id="waiting-screen" style="display:none">
+      <div class="room-code-display">
+        <div class="code" id="room-code-show"></div>
+        <div class="hint">Share this code with your opponent</div>
+      </div>
+      <button class="lobby-btn" onclick="copyRoomCode()" id="copy-btn">Copy code</button>
+      <p class="waiting" style="margin-top:12px">Waiting for opponent</p>
+    </div>
+
+    <div class="lobby-divider">or</div>
+
+    <div class="lobby-section">
+      <h2>Join a game</h2>
+      <p>Enter the room code from your opponent.</p>
+      <input class="lobby-input" id="join-code-input" placeholder="Enter room code" maxlength="6" />
+      <button class="lobby-btn" onclick="joinRoom()">Join room</button>
+      <div class="error-msg" id="join-error"></div>
+    </div>
+
+    <div class="lobby-divider">or</div>
+
+    <div class="lobby-section">
+      <h2>Local game</h2>
+      <p>Play on one screen, taking turns.</p>
+      <button class="lobby-btn" onclick="startLocalGame()">Play locally</button>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="game-area">
+    <div id="room-header">
+      <div class="room-info" id="room-info"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="connection-badge" id="connection-status">
+          <span class="connection-dot connected"></span> Connected
+        </span>
+        <button id="leave-btn" onclick="leaveRoom()">Leave</button>
       </div>
     </div>
-    <div id="turn-indicator">Developer 1's turn</div>
-    <div class="player-panel" id="p2-panel" style="--accent:#1D9E75">
-      <div class="player-dot" style="background:#1D9E75"></div>
-      <div>
-        <div class="player-name">Developer 2</div>
-        <div class="player-info" id="p2-info">0 buildings · 3 parks</div>
+    <div id="winner-banner"></div>
+    <div id="status-bar">
+      <div class="player-panel active" id="p1-panel" style="--accent:#EF9F27">
+        <div class="player-dot" style="background:#EF9F27"></div>
+        <div>
+          <div class="player-name">Developer 1</div>
+          <div class="player-info" id="p1-info">0 buildings · 3 parks</div>
+        </div>
+      </div>
+      <div id="turn-indicator">Developer 1's turn</div>
+      <div class="player-panel" id="p2-panel" style="--accent:#1D9E75">
+        <div class="player-dot" style="background:#1D9E75"></div>
+        <div>
+          <div class="player-name">Developer 2</div>
+          <div class="player-info" id="p2-info">0 buildings · 3 parks</div>
+        </div>
       </div>
     </div>
-  </div>
-
-  <div id="controls">
-    <span style="font-size:11px;color:var(--text-secondary);margin-right:2px">Build:</span>
-    <button class="tile-btn selected" data-type="settle" onclick="selectTile('settle',this)">
-      <span class="tile-swatch" id="settle-swatch" style="background:#FAC775"></span> Building
-    </button>
-    <button class="tile-btn" data-type="park" id="park-btn" onclick="selectTile('park',this)">
-      <span class="tile-swatch" style="background:#639922"></span> Park <span class="tile-count" id="park-count">(3)</span>
-    </button>
-    <button id="reset-btn" onclick="initGame()" style="margin-left:auto">New game</button>
-  </div>
-
-  <div id="msg">Build density to reach tower. 3 of 4 neighbors at your level or higher to upgrade.</div>
-  <div id="grid-wrap"><div id="grid"></div></div>
-
-  <div id="legend">
-    <div class="leg-item"><div class="leg-sw" style="background:#FAC775"></div>Low-rise</div>
-    <div class="leg-item"><div class="leg-sw" style="background:#EF9F27"></div>Mid-rise</div>
-    <div class="leg-item"><div class="leg-sw" style="background:#E24B4A"></div>High-rise</div>
-    <div class="leg-item"><div class="leg-sw" style="background:#7F77DD"></div>Tower ★</div>
-    <div class="leg-div"></div>
-    <div class="leg-item"><div class="leg-sw" style="background:#185FA5"></div>River</div>
-    <div class="leg-item"><div class="leg-sw" style="background:#639922"></div>Park</div>
-  </div>
-  <div class="rule-box">
-    Upgrade rule: 3 of 4 neighbors must be occupied at your density level or higher.
-    Rivers are fixed terrain. Parks give +1 density to all YOUR adjacent buildings when placed (3 per developer).
-    First tower wins.
+    <div id="controls">
+      <span style="font-size:11px;color:var(--text-secondary);margin-right:2px">Build:</span>
+      <button class="tile-btn selected" data-type="settle" onclick="selectTile('settle',this)">
+        <span class="tile-swatch" id="settle-swatch" style="background:#FAC775"></span> Building
+      </button>
+      <button class="tile-btn" data-type="park" id="park-btn" onclick="selectTile('park',this)">
+        <span class="tile-swatch" style="background:#639922"></span> Park <span class="tile-count" id="park-count">(3)</span>
+      </button>
+    </div>
+    <div id="msg">Build density to reach tower. 3 of 4 neighbors at your level or higher to upgrade.</div>
+    <div id="grid-wrap"><div id="grid"></div></div>
+    <div id="legend">
+      <div class="leg-item"><div class="leg-sw" style="background:#FAC775"></div>Low-rise</div>
+      <div class="leg-item"><div class="leg-sw" style="background:#EF9F27"></div>Mid-rise</div>
+      <div class="leg-item"><div class="leg-sw" style="background:#E24B4A"></div>High-rise</div>
+      <div class="leg-item"><div class="leg-sw" style="background:#7F77DD"></div>Tower ★</div>
+      <div class="leg-div"></div>
+      <div class="leg-item"><div class="leg-sw" style="background:#185FA5"></div>River</div>
+      <div class="leg-item"><div class="leg-sw" style="background:#639922"></div>Park</div>
+    </div>
+    <div class="rule-box">
+      Upgrade rule: 3 of 4 neighbors must be occupied at your density level or higher.
+      Rivers are fixed terrain. Parks give +1 density to all YOUR adjacent buildings when placed (3 per developer).
+      First tower wins.
+    </div>
   </div>
 </div>
 
 <script>
+// ─── FIREBASE CONFIG ───
+// TODO: Replace with your Firebase project config
+// 1. Go to console.firebase.google.com
+// 2. Create a project (free tier)
+// 3. Add a Web app
+// 4. Copy the config object here
+// 5. Go to Realtime Database → Create Database → Start in test mode
+const firebaseConfig = {
+  apiKey: "AIzaSyDEdfGzkyK1vutD619mPni8I8OywhHTN7c",
+  authDomain: "density-game.firebaseapp.com",
+  databaseURL: "https://density-game-default-rtdb.firebaseio.com",
+  projectId: "density-game",
+  storageBucket: "density-game.firebasestorage.app",
+  messagingSenderId: "492408574535",
+  appId: "1:492408574535:web:8ff444bb322c727ab51762"
+};
+
+let firebaseReady = false;
+let db = null;
+try {
+  if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    firebaseReady = true;
+  }
+} catch(e) { console.warn('Firebase init failed:', e); }
+
+// ─── GAME STATE ───
 const GRID = 20;
 const MAX_PARKS = 3;
-let board, currentPlayer, selectedTile, gameOver, inventory;
-
 const P1_COLORS = ['#FAC775','#EF9F27','#E24B4A','#7F77DD'];
 const P2_COLORS = ['#9FE1CB','#1D9E75','#378ADD','#534AB7'];
 const DENSITY_NAMES = ['low-rise','mid-rise','high-rise','tower'];
 
-function generateRivers() {
+let board, currentPlayer, selectedTile, gameOver, inventory;
+let myPlayer = 0; // 0 = local, 1 = player 1, 2 = player 2
+let roomCode = null;
+let roomRef = null;
+let isOnline = false;
+let unsubscribe = null;
+
+// ─── LOBBY ───
+function generateRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function createRoom() {
+  if (!firebaseReady) {
+    document.getElementById('join-error').textContent = 'Firebase not configured. See index.html comments.';
+    return;
+  }
+  roomCode = generateRoomCode();
+  document.getElementById('room-code-show').textContent = roomCode;
+  document.querySelector('.lobby-section:first-child').style.display = 'none';
+  document.getElementById('waiting-screen').style.display = 'block';
+
+  const initialState = buildInitialState();
+  roomRef = db.ref('rooms/' + roomCode);
+  roomRef.set({
+    state: initialState,
+    players: { p1: true, p2: false },
+    created: Date.now()
+  });
+
+  myPlayer = 1;
+
+  roomRef.child('players/p2').on('value', snap => {
+    if (snap.val() === true) {
+      startOnlineGame();
+    }
+  });
+
+  roomRef.onDisconnect().remove();
+}
+
+function copyRoomCode() {
+  navigator.clipboard.writeText(roomCode).then(() => {
+    document.getElementById('copy-btn').textContent = 'Copied!';
+    setTimeout(() => document.getElementById('copy-btn').textContent = 'Copy code', 2000);
+  });
+}
+
+function joinRoom() {
+  if (!firebaseReady) {
+    document.getElementById('join-error').textContent = 'Firebase not configured. See index.html comments.';
+    return;
+  }
+  const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+  if (!code || code.length < 4) {
+    document.getElementById('join-error').textContent = 'Enter a valid room code.';
+    return;
+  }
+  roomCode = code;
+  roomRef = db.ref('rooms/' + roomCode);
+
+  roomRef.child('players').once('value', snap => {
+    const players = snap.val();
+    if (!players) {
+      document.getElementById('join-error').textContent = 'Room not found.';
+      return;
+    }
+    if (players.p2 === true) {
+      document.getElementById('join-error').textContent = 'Room is full.';
+      return;
+    }
+    myPlayer = 2;
+    roomRef.child('players/p2').set(true);
+    startOnlineGame();
+  });
+}
+
+function startOnlineGame() {
+  isOnline = true;
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('game-area').style.display = 'block';
+  document.getElementById('room-info').innerHTML = 'Room: <strong>' + roomCode + '</strong>';
+
+  const myPanel = document.getElementById(myPlayer === 1 ? 'p1-panel' : 'p2-panel');
+  myPanel.classList.add('you');
+  const badge = document.createElement('span');
+  badge.className = 'you-badge';
+  badge.textContent = 'YOU';
+  myPanel.appendChild(badge);
+
+  roomRef.child('state').on('value', snap => {
+    const state = snap.val();
+    if (state) {
+      loadState(state);
+      renderGrid();
+      updateUI();
+    }
+  });
+
+  roomRef.child('players').on('value', snap => {
+    const players = snap.val();
+    const statusEl = document.getElementById('connection-status');
+    if (players && players.p1 && players.p2) {
+      statusEl.innerHTML = '<span class="connection-dot connected"></span> Both connected';
+    } else {
+      statusEl.innerHTML = '<span class="connection-dot disconnected"></span> Opponent disconnected';
+    }
+  });
+}
+
+function startLocalGame() {
+  isOnline = false;
+  myPlayer = 0;
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('game-area').style.display = 'block';
+  document.getElementById('room-info').innerHTML = 'Local game';
+  document.getElementById('connection-status').style.display = 'none';
+  initGame();
+}
+
+function leaveRoom() {
+  if (roomRef && isOnline) {
+    if (myPlayer === 1) roomRef.remove();
+    else roomRef.child('players/p2').set(false);
+  }
+  location.reload();
+}
+
+// ─── STATE SERIALIZATION ───
+function buildInitialState() {
+  const b = Array.from({length: GRID}, () => Array(GRID).fill(null));
+  const rivers = generateRiversData();
+  for (const key of rivers) {
+    const [r, c] = key.split(',').map(Number);
+    b[r][c] = { t: 'r' };
+  }
+  return {
+    board: serializeBoard(b),
+    currentPlayer: 1,
+    gameOver: false,
+    inventory: { 1: { parks: MAX_PARKS, buildings: 0 }, 2: { parks: MAX_PARKS, buildings: 0 } },
+    winner: null,
+    winR: null, winC: null
+  };
+}
+
+function serializeBoard(b) {
+  const rows = [];
+  for (let r = 0; r < GRID; r++) {
+    const row = [];
+    for (let c = 0; c < GRID; c++) {
+      row.push(b[r][c] || 0);
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+function loadState(state) {
+  board = Array.from({length: GRID}, () => Array(GRID).fill(null));
+  if (state.board) {
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        const cell = state.board[r] ? state.board[r][c] : 0;
+        if (cell && cell !== 0) {
+          if (cell.t === 'r') board[r][c] = { type: 'river' };
+          else if (cell.t === 'p') board[r][c] = { type: 'park', player: cell.pl };
+          else if (cell.t === 's') board[r][c] = { type: 'settle', player: cell.pl, density: cell.d };
+        }
+      }
+    }
+  }
+  currentPlayer = state.currentPlayer || 1;
+  gameOver = state.gameOver || false;
+  inventory = state.inventory || { 1: { parks: MAX_PARKS, buildings: 0 }, 2: { parks: MAX_PARKS, buildings: 0 } };
+  if (state.gameOver && state.winner) {
+    showWinBanner(state.winner, state.winR, state.winC);
+  } else {
+    document.getElementById('winner-banner').style.display = 'none';
+  }
+}
+
+function currentStateSnapshot() {
+  const b = [];
+  for (let r = 0; r < GRID; r++) {
+    const row = [];
+    for (let c = 0; c < GRID; c++) {
+      const cell = board[r][c];
+      if (!cell) row.push(0);
+      else if (cell.type === 'river') row.push({ t: 'r' });
+      else if (cell.type === 'park') row.push({ t: 'p', pl: cell.player });
+      else if (cell.type === 'settle') row.push({ t: 's', pl: cell.player, d: cell.density });
+      else row.push(0);
+    }
+    b.push(row);
+  }
+  return {
+    board: b,
+    currentPlayer,
+    gameOver,
+    inventory,
+    winner: null, winR: null, winC: null
+  };
+}
+
+function pushState(extraFields) {
+  if (!isOnline || !roomRef) return;
+  const state = currentStateSnapshot();
+  Object.assign(state, extraFields || {});
+  roomRef.child('state').set(state);
+}
+
+// ─── RIVER GENERATION ───
+function generateRiversData() {
   const rivers = new Set();
   for (let ri = 0; ri < 2; ri++) {
     const vertical = ri === 0;
     let r, c;
-    if (vertical) {
-      r = 0;
-      c = 4 + Math.floor(Math.random() * 12);
-    } else {
-      r = 4 + Math.floor(Math.random() * 12);
-      c = 0;
-    }
+    if (vertical) { r = 0; c = 4 + Math.floor(Math.random() * 12); }
+    else { r = 4 + Math.floor(Math.random() * 12); c = 0; }
     for (let step = 0; step < GRID; step++) {
       rivers.add(`${r},${c}`);
       if (Math.random() < 0.35) {
-        const side = vertical
-          ? (Math.random() < 0.5 ? [0, -1] : [0, 1])
-          : (Math.random() < 0.5 ? [-1, 0] : [1, 0]);
+        const side = vertical ? (Math.random() < 0.5 ? [0,-1] : [0,1]) : (Math.random() < 0.5 ? [-1,0] : [1,0]);
         const nr = r + side[0], nc = c + side[1];
-        if (nr >= 0 && nr < GRID && nc >= 0 && nc < GRID) {
-          rivers.add(`${nr},${nc}`);
-        }
+        if (nr >= 0 && nr < GRID && nc >= 0 && nc < GRID) rivers.add(`${nr},${nc}`);
       }
-      if (vertical) {
-        r++;
-        if (Math.random() < 0.3) c += Math.random() < 0.5 ? -1 : 1;
-        c = Math.max(1, Math.min(GRID - 2, c));
-      } else {
-        c++;
-        if (Math.random() < 0.3) r += Math.random() < 0.5 ? -1 : 1;
-        r = Math.max(1, Math.min(GRID - 2, r));
-      }
+      if (vertical) { r++; if (Math.random() < 0.3) c += Math.random() < 0.5 ? -1 : 1; c = Math.max(1, Math.min(GRID-2, c)); }
+      else { c++; if (Math.random() < 0.3) r += Math.random() < 0.5 ? -1 : 1; r = Math.max(1, Math.min(GRID-2, r)); }
       if (r >= GRID || c >= GRID) break;
     }
   }
   return rivers;
 }
 
+// ─── GAME LOGIC ───
 function initGame() {
   board = Array.from({length: GRID}, () => Array(GRID).fill(null));
-  const rivers = generateRivers();
+  const rivers = generateRiversData();
   for (const key of rivers) {
     const [r, c] = key.split(',').map(Number);
     board[r][c] = { type: 'river' };
@@ -194,10 +523,7 @@ function initGame() {
   currentPlayer = 1;
   selectedTile = 'settle';
   gameOver = false;
-  inventory = {
-    1: { parks: MAX_PARKS, buildings: 0 },
-    2: { parks: MAX_PARKS, buildings: 0 }
-  };
+  inventory = { 1: { parks: MAX_PARKS, buildings: 0 }, 2: { parks: MAX_PARKS, buildings: 0 } };
   document.getElementById('winner-banner').style.display = 'none';
   setMsg('Build density to reach tower. 3 of 4 neighbors at your level or higher to upgrade.');
   renderGrid();
@@ -209,46 +535,34 @@ function getNeighbors(r, c) {
   return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([nr,nc]) => nr>=0&&nr<GRID&&nc>=0&&nc<GRID);
 }
 
-function isOnEdge(r, c) {
-  return r === 0 || r === GRID - 1 || c === 0 || c === GRID - 1;
-}
-
 function getEffectiveDensity(r, c) {
   const b = board[r][c];
   if (!b) return -1;
-  if (b.type === 'river') return -1;
-  if (b.type === 'park') return -1;
+  if (b.type === 'river' || b.type === 'park') return -1;
   return b.density;
 }
 
-function isOccupiedForSurround(r, c) {
-  const b = board[r][c];
-  return b !== null;
-}
+function isOccupiedForSurround(r, c) { return board[r][c] !== null; }
 
 function canUpgrade(r, c) {
   const b = board[r][c];
   if (!b || b.type !== 'settle' || b.density >= 4) return false;
   const neighbors = getNeighbors(r, c);
-  let qualifyCount = 0;
   if (neighbors.length < 3) return false;
+  let q = 0;
   for (const [nr, nc] of neighbors) {
     if (!isOccupiedForSurround(nr, nc)) continue;
     const nd = getEffectiveDensity(nr, nc);
-    if (nd === -1 || nd >= b.density) {
-      qualifyCount++;
-    }
+    if (nd === -1 || nd >= b.density) q++;
   }
-  return qualifyCount >= 3;
+  return q >= 3;
 }
 
 function runUpgradeCascade() {
   const allUpgraded = [];
-  let changed = true;
-  let safety = 0;
+  let changed = true, safety = 0;
   while (changed && safety < 50) {
-    changed = false;
-    safety++;
+    changed = false; safety++;
     for (let r = 0; r < GRID; r++) {
       for (let c = 0; c < GRID; c++) {
         if (canUpgrade(r, c)) {
@@ -268,6 +582,7 @@ function runUpgradeCascade() {
 
 function handleClick(r, c) {
   if (gameOver) return;
+  if (isOnline && myPlayer !== currentPlayer) { setMsg("Wait for your opponent's move."); return; }
   if (board[r][c]) {
     if (board[r][c].type === 'river') setMsg("Can't build on a river.");
     else setMsg('That space is taken.');
@@ -283,18 +598,16 @@ function handleClick(r, c) {
     if (inv.parks <= 0) { setMsg('No parks left!'); return; }
     board[r][c] = { type: 'park', player: currentPlayer };
     inv.parks--;
-    const neighbors = getNeighbors(r, c);
     const boosted = [];
-    for (const [nr, nc] of neighbors) {
+    for (const [nr, nc] of getNeighbors(r, c)) {
       const nb = board[nr][nc];
       if (nb && nb.type === 'settle' && nb.player === currentPlayer && nb.density < 4) {
         nb.density += 1;
         boosted.push({ r: nr, c: nc, newDensity: nb.density, player: nb.player });
         if (nb.density === 4) {
           endGame(nb.player, nr, nc);
-          renderGrid();
-          animateUpgrades(boosted);
-          updateUI();
+          pushState({ winner: nb.player, winR: nr, winC: nc, gameOver: true });
+          renderGrid(); animateUpgrades(boosted); updateUI();
           return;
         }
       }
@@ -305,8 +618,8 @@ function handleClick(r, c) {
       const names = all.map(u => `(${u.r+1},${u.c+1}) → ${DENSITY_NAMES[u.newDensity-1]}`).join(', ');
       setMsg('Park boost! ' + names);
       if (!gameOver) { currentPlayer = currentPlayer === 1 ? 2 : 1; updateUI(); }
-      renderGrid();
-      animateUpgrades(all);
+      pushState(gameOver ? { winner: board[all[all.length-1].r][all[all.length-1].c].player, winR: all[all.length-1].r, winC: all[all.length-1].c, gameOver: true } : {});
+      renderGrid(); animateUpgrades(all);
       return;
     }
   }
@@ -319,69 +632,57 @@ function handleClick(r, c) {
       return `(${u.r+1},${u.c+1}) → ${DENSITY_NAMES[u.newDensity-1]}${who}`;
     }).join(', ');
     setMsg('Upgraded: ' + names);
-  } else if (!gameOver) {
-    setMsg('');
-  }
+  } else if (!gameOver) { setMsg(''); }
 
-  if (!gameOver) {
-    currentPlayer = currentPlayer === 1 ? 2 : 1;
-    updateUI();
-  }
+  if (!gameOver) { currentPlayer = currentPlayer === 1 ? 2 : 1; updateUI(); }
+  pushState(gameOver ? { winner: upgraded[upgraded.length-1]?.player, winR: upgraded[upgraded.length-1]?.r, winC: upgraded[upgraded.length-1]?.c, gameOver: true } : {});
   renderGrid();
   animateUpgrades(upgraded);
 }
 
+function endGame(winner, r, c) {
+  gameOver = true;
+  showWinBanner(winner, r, c);
+  setMsg('Game over.');
+}
+
+function showWinBanner(winner, r, c) {
+  const banner = document.getElementById('winner-banner');
+  const color = winner === 1 ? '#7F77DD' : '#534AB7';
+  const isMe = (isOnline && winner === myPlayer);
+  const label = isOnline ? (isMe ? 'You win!' : 'You lose!') : `Developer ${winner} wins!`;
+  banner.style.display = 'block';
+  banner.style.borderColor = color;
+  banner.style.color = color;
+  banner.textContent = `${label} Tower at (${(r||0)+1}, ${(c||0)+1}).`;
+}
+
+// ─── RENDERING ───
 function animateUpgrades(upgraded) {
   if (!upgraded.length) return;
   const grid = document.getElementById('grid');
   upgraded.forEach(u => {
     const idx = u.r * GRID + u.c;
     const cell = grid.children[idx];
-    if (cell) {
-      cell.classList.add('upgraded');
-      setTimeout(() => cell.classList.remove('upgraded'), 350);
-    }
+    if (cell) { cell.classList.add('upgraded'); setTimeout(() => cell.classList.remove('upgraded'), 350); }
   });
-}
-
-function endGame(winner, r, c) {
-  gameOver = true;
-  const banner = document.getElementById('winner-banner');
-  const color = winner === 1 ? '#7F77DD' : '#534AB7';
-  banner.style.display = 'block';
-  banner.style.borderColor = color;
-  banner.style.color = color;
-  banner.textContent = `Developer ${winner} wins! Tower at (${r+1}, ${c+1}).`;
-  setMsg('Game over. Click "New game" to play again.');
-  updatePlayerInfo();
-}
-
-function updatePlayerInfo() {
-  for (const p of [1, 2]) {
-    const inv = inventory[p];
-    document.getElementById(`p${p}-info`).textContent =
-      `${inv.buildings} buildings · ${inv.parks} parks`;
-  }
 }
 
 function renderGrid() {
   const grid = document.getElementById('grid');
   grid.style.gridTemplateColumns = `repeat(${GRID}, 28px)`;
   grid.innerHTML = '';
+  const notMyTurn = isOnline && myPlayer !== currentPlayer && !gameOver;
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
       const cell = document.createElement('div');
       cell.className = 'cell';
+      if (notMyTurn) cell.classList.add('disabled');
       const b = board[r][c];
-      if (!b) {
-        cell.classList.add('empty');
-      } else if (b.type === 'river') {
-        cell.classList.add('river');
-      } else if (b.type === 'park') {
-        cell.style.background = '#639922';
-        cell.classList.add('park-cell');
-        cell.textContent = '♣';
-      } else if (b.type === 'settle') {
+      if (!b) { cell.classList.add('empty'); }
+      else if (b.type === 'river') { cell.classList.add('river'); }
+      else if (b.type === 'park') { cell.style.background = '#639922'; cell.classList.add('park-cell'); cell.textContent = '♣'; }
+      else if (b.type === 'settle') {
         const colors = b.player === 1 ? P1_COLORS : P2_COLORS;
         cell.style.background = colors[b.density - 1];
         cell.textContent = b.density;
@@ -393,15 +694,25 @@ function renderGrid() {
 }
 
 function updateUI() {
-  document.getElementById('turn-indicator').textContent = gameOver ? '' : `Developer ${currentPlayer}'s turn`;
+  const turnLabel = isOnline
+    ? (myPlayer === currentPlayer ? 'Your turn' : "Opponent's turn")
+    : `Developer ${currentPlayer}'s turn`;
+  document.getElementById('turn-indicator').textContent = gameOver ? '' : turnLabel;
   document.getElementById('p1-panel').classList.toggle('active', currentPlayer === 1 && !gameOver);
   document.getElementById('p2-panel').classList.toggle('active', currentPlayer === 2 && !gameOver);
   document.getElementById('settle-swatch').style.background = currentPlayer === 1 ? '#FAC775' : '#9FE1CB';
-  const inv = inventory[currentPlayer];
+  const inv = inventory[isOnline ? myPlayer : currentPlayer] || { parks: 0, buildings: 0 };
   document.getElementById('park-count').textContent = `(${inv.parks})`;
-  document.getElementById('park-btn').disabled = inv.parks <= 0;
+  document.getElementById('park-btn').disabled = inv.parks <= 0 || (isOnline && myPlayer !== currentPlayer);
   if (selectedTile === 'park' && inv.parks <= 0) selectTile('settle', document.querySelector('.tile-btn[data-type="settle"]'));
   updatePlayerInfo();
+}
+
+function updatePlayerInfo() {
+  for (const p of [1, 2]) {
+    const inv = inventory[p] || { parks: 0, buildings: 0 };
+    document.getElementById(`p${p}-info`).textContent = `${inv.buildings} buildings · ${inv.parks} parks`;
+  }
 }
 
 function selectTile(type, btn) {
@@ -411,8 +722,6 @@ function selectTile(type, btn) {
 }
 
 function setMsg(text) { document.getElementById('msg').textContent = text; }
-
-initGame();
 </script>
 </body>
 </html>
