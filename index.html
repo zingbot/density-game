@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Density — City Building Game</title>
+  <style>
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f5;
+      --text-primary: #1a1a1a;
+      --text-secondary: #666666;
+      --text-tertiary: #999999;
+      --border-primary: #cccccc;
+      --border-secondary: #e0e0e0;
+      --border-tertiary: #eeeeee;
+      --radius-md: 6px;
+      --radius-lg: 10px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1a1a1a;
+        --bg-secondary: #2a2a2a;
+        --text-primary: #e8e8e8;
+        --text-secondary: #aaaaaa;
+        --text-tertiary: #777777;
+        --border-primary: #555555;
+        --border-secondary: #444444;
+        --border-tertiary: #333333;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      display: flex;
+      justify-content: center;
+      padding: 1rem;
+      min-height: 100vh;
+    }
+    #game-root { max-width: 700px; width: 100%; user-select: none; }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 1rem; }
+    #status-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+    .player-panel { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius-lg); border: 1.5px solid transparent; transition: border-color 0.15s; background: var(--bg-secondary); min-width: 170px; }
+    .player-panel.active { border-color: var(--accent); background: var(--bg-primary); }
+    .player-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .player-name { font-size: 13px; font-weight: 500; }
+    .player-info { font-size: 11px; color: var(--text-secondary); line-height: 1.4; }
+    #controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .tile-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-secondary); background: var(--bg-primary); cursor: pointer; font-size: 12px; color: var(--text-primary); transition: background 0.1s, border-color 0.15s; }
+    .tile-btn:hover { background: var(--bg-secondary); }
+    .tile-btn.selected { border-color: var(--border-primary); background: var(--bg-secondary); font-weight: 500; }
+    .tile-btn:disabled { opacity: 0.3; pointer-events: none; }
+    .tile-swatch { width: 12px; height: 12px; border-radius: 3px; }
+    .tile-count { font-size: 10px; color: var(--text-tertiary); }
+    #grid-wrap { overflow-x: auto; padding-bottom: 4px; }
+    #grid { display: grid; gap: 1px; width: max-content; }
+    .cell {
+      width: 28px; height: 28px; border-radius: 3px;
+      cursor: pointer; transition: transform 0.07s;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 500; position: relative;
+      color: rgba(0,0,0,0.35);
+    }
+    .cell:hover { transform: scale(1.12); z-index: 10; }
+    .cell.empty { background: var(--bg-secondary); }
+    .cell.river { background: #185FA5; cursor: default; }
+    .cell.river:hover { transform: none; }
+    .cell.park-cell { color: rgba(255,255,255,0.8); font-size: 12px; }
+    .cell.upgraded { animation: pulse 0.35s ease; }
+    @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.22)} }
+    #legend { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 0; align-items: center; font-size: 11px; color: var(--text-secondary); }
+    .leg-item { display: flex; align-items: center; gap: 4px; }
+    .leg-sw { width: 10px; height: 10px; border-radius: 2px; }
+    .leg-div { width: 1px; height: 12px; background: var(--border-tertiary); margin: 0 3px; }
+    #msg { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; min-height: 16px; }
+    #winner-banner { display: none; padding: 12px; border-radius: var(--radius-lg); text-align: center; margin-bottom: 10px; font-size: 15px; font-weight: 500; border: 1.5px solid; }
+    button#reset-btn { padding: 5px 12px; border-radius: var(--radius-md); border: 1px solid var(--border-secondary); background: var(--bg-primary); cursor: pointer; font-size: 12px; color: var(--text-primary); }
+    button#reset-btn:hover { background: var(--bg-secondary); }
+    #turn-indicator { font-size: 12px; color: var(--text-secondary); text-align: center; }
+    .rule-box { font-size: 11px; color: var(--text-tertiary); margin-top: 8px; line-height: 1.55; }
+  </style>
+</head>
+<body>
+<div id="game-root">
+  <h1>Density</h1>
+  <p class="subtitle">Two developers battle to build the first tower.</p>
+
+  <div id="winner-banner"></div>
+  <div id="status-bar">
+    <div class="player-panel active" id="p1-panel" style="--accent:#EF9F27">
+      <div class="player-dot" style="background:#EF9F27"></div>
+      <div>
+        <div class="player-name">Developer 1</div>
+        <div class="player-info" id="p1-info">0 buildings · 3 parks</div>
+      </div>
+    </div>
+    <div id="turn-indicator">Developer 1's turn</div>
+    <div class="player-panel" id="p2-panel" style="--accent:#1D9E75">
+      <div class="player-dot" style="background:#1D9E75"></div>
+      <div>
+        <div class="player-name">Developer 2</div>
+        <div class="player-info" id="p2-info">0 buildings · 3 parks</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="controls">
+    <span style="font-size:11px;color:var(--text-secondary);margin-right:2px">Build:</span>
+    <button class="tile-btn selected" data-type="settle" onclick="selectTile('settle',this)">
+      <span class="tile-swatch" id="settle-swatch" style="background:#FAC775"></span> Building
+    </button>
+    <button class="tile-btn" data-type="park" id="park-btn" onclick="selectTile('park',this)">
+      <span class="tile-swatch" style="background:#639922"></span> Park <span class="tile-count" id="park-count">(3)</span>
+    </button>
+    <button id="reset-btn" onclick="initGame()" style="margin-left:auto">New game</button>
+  </div>
+
+  <div id="msg">Build density to reach tower. 3 of 4 neighbors at your level or higher to upgrade.</div>
+  <div id="grid-wrap"><div id="grid"></div></div>
+
+  <div id="legend">
+    <div class="leg-item"><div class="leg-sw" style="background:#FAC775"></div>Low-rise</div>
+    <div class="leg-item"><div class="leg-sw" style="background:#EF9F27"></div>Mid-rise</div>
+    <div class="leg-item"><div class="leg-sw" style="background:#E24B4A"></div>High-rise</div>
+    <div class="leg-item"><div class="leg-sw" style="background:#7F77DD"></div>Tower ★</div>
+    <div class="leg-div"></div>
+    <div class="leg-item"><div class="leg-sw" style="background:#185FA5"></div>River</div>
+    <div class="leg-item"><div class="leg-sw" style="background:#639922"></div>Park</div>
+  </div>
+  <div class="rule-box">
+    Upgrade rule: 3 of 4 neighbors must be occupied at your density level or higher.
+    Rivers are fixed terrain. Parks give +1 density to all YOUR adjacent buildings when placed (3 per developer).
+    First tower wins.
+  </div>
+</div>
+
+<script>
+const GRID = 20;
+const MAX_PARKS = 3;
+let board, currentPlayer, selectedTile, gameOver, inventory;
+
+const P1_COLORS = ['#FAC775','#EF9F27','#E24B4A','#7F77DD'];
+const P2_COLORS = ['#9FE1CB','#1D9E75','#378ADD','#534AB7'];
+const DENSITY_NAMES = ['low-rise','mid-rise','high-rise','tower'];
+
+function generateRivers() {
+  const rivers = new Set();
+  for (let ri = 0; ri < 2; ri++) {
+    const vertical = ri === 0;
+    let r, c;
+    if (vertical) {
+      r = 0;
+      c = 4 + Math.floor(Math.random() * 12);
+    } else {
+      r = 4 + Math.floor(Math.random() * 12);
+      c = 0;
+    }
+    for (let step = 0; step < GRID; step++) {
+      rivers.add(`${r},${c}`);
+      if (Math.random() < 0.35) {
+        const side = vertical
+          ? (Math.random() < 0.5 ? [0, -1] : [0, 1])
+          : (Math.random() < 0.5 ? [-1, 0] : [1, 0]);
+        const nr = r + side[0], nc = c + side[1];
+        if (nr >= 0 && nr < GRID && nc >= 0 && nc < GRID) {
+          rivers.add(`${nr},${nc}`);
+        }
+      }
+      if (vertical) {
+        r++;
+        if (Math.random() < 0.3) c += Math.random() < 0.5 ? -1 : 1;
+        c = Math.max(1, Math.min(GRID - 2, c));
+      } else {
+        c++;
+        if (Math.random() < 0.3) r += Math.random() < 0.5 ? -1 : 1;
+        r = Math.max(1, Math.min(GRID - 2, r));
+      }
+      if (r >= GRID || c >= GRID) break;
+    }
+  }
+  return rivers;
+}
+
+function initGame() {
+  board = Array.from({length: GRID}, () => Array(GRID).fill(null));
+  const rivers = generateRivers();
+  for (const key of rivers) {
+    const [r, c] = key.split(',').map(Number);
+    board[r][c] = { type: 'river' };
+  }
+  currentPlayer = 1;
+  selectedTile = 'settle';
+  gameOver = false;
+  inventory = {
+    1: { parks: MAX_PARKS, buildings: 0 },
+    2: { parks: MAX_PARKS, buildings: 0 }
+  };
+  document.getElementById('winner-banner').style.display = 'none';
+  setMsg('Build density to reach tower. 3 of 4 neighbors at your level or higher to upgrade.');
+  renderGrid();
+  updateUI();
+  selectTile('settle', document.querySelector('.tile-btn[data-type="settle"]'));
+}
+
+function getNeighbors(r, c) {
+  return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([nr,nc]) => nr>=0&&nr<GRID&&nc>=0&&nc<GRID);
+}
+
+function isOnEdge(r, c) {
+  return r === 0 || r === GRID - 1 || c === 0 || c === GRID - 1;
+}
+
+function getEffectiveDensity(r, c) {
+  const b = board[r][c];
+  if (!b) return -1;
+  if (b.type === 'river') return -1;
+  if (b.type === 'park') return -1;
+  return b.density;
+}
+
+function isOccupiedForSurround(r, c) {
+  const b = board[r][c];
+  return b !== null;
+}
+
+function canUpgrade(r, c) {
+  const b = board[r][c];
+  if (!b || b.type !== 'settle' || b.density >= 4) return false;
+  const neighbors = getNeighbors(r, c);
+  let qualifyCount = 0;
+  if (neighbors.length < 3) return false;
+  for (const [nr, nc] of neighbors) {
+    if (!isOccupiedForSurround(nr, nc)) continue;
+    const nd = getEffectiveDensity(nr, nc);
+    if (nd === -1 || nd >= b.density) {
+      qualifyCount++;
+    }
+  }
+  return qualifyCount >= 3;
+}
+
+function runUpgradeCascade() {
+  const allUpgraded = [];
+  let changed = true;
+  let safety = 0;
+  while (changed && safety < 50) {
+    changed = false;
+    safety++;
+    for (let r = 0; r < GRID; r++) {
+      for (let c = 0; c < GRID; c++) {
+        if (canUpgrade(r, c)) {
+          board[r][c].density += 1;
+          allUpgraded.push({ r, c, newDensity: board[r][c].density, player: board[r][c].player });
+          changed = true;
+          if (board[r][c].density === 4) {
+            endGame(board[r][c].player, r, c);
+            return allUpgraded;
+          }
+        }
+      }
+    }
+  }
+  return allUpgraded;
+}
+
+function handleClick(r, c) {
+  if (gameOver) return;
+  if (board[r][c]) {
+    if (board[r][c].type === 'river') setMsg("Can't build on a river.");
+    else setMsg('That space is taken.');
+    return;
+  }
+
+  const inv = inventory[currentPlayer];
+
+  if (selectedTile === 'settle') {
+    board[r][c] = { type: 'settle', player: currentPlayer, density: 1 };
+    inv.buildings++;
+  } else if (selectedTile === 'park') {
+    if (inv.parks <= 0) { setMsg('No parks left!'); return; }
+    board[r][c] = { type: 'park', player: currentPlayer };
+    inv.parks--;
+    const neighbors = getNeighbors(r, c);
+    const boosted = [];
+    for (const [nr, nc] of neighbors) {
+      const nb = board[nr][nc];
+      if (nb && nb.type === 'settle' && nb.player === currentPlayer && nb.density < 4) {
+        nb.density += 1;
+        boosted.push({ r: nr, c: nc, newDensity: nb.density, player: nb.player });
+        if (nb.density === 4) {
+          endGame(nb.player, nr, nc);
+          renderGrid();
+          animateUpgrades(boosted);
+          updateUI();
+          return;
+        }
+      }
+    }
+    if (boosted.length > 0) {
+      const cascaded = runUpgradeCascade();
+      const all = [...boosted, ...cascaded];
+      const names = all.map(u => `(${u.r+1},${u.c+1}) → ${DENSITY_NAMES[u.newDensity-1]}`).join(', ');
+      setMsg('Park boost! ' + names);
+      if (!gameOver) { currentPlayer = currentPlayer === 1 ? 2 : 1; updateUI(); }
+      renderGrid();
+      animateUpgrades(all);
+      return;
+    }
+  }
+
+  const upgraded = runUpgradeCascade();
+
+  if (upgraded.length > 0 && !gameOver) {
+    const names = upgraded.map(u => {
+      const who = u.player === currentPlayer ? '' : ' (opponent!)';
+      return `(${u.r+1},${u.c+1}) → ${DENSITY_NAMES[u.newDensity-1]}${who}`;
+    }).join(', ');
+    setMsg('Upgraded: ' + names);
+  } else if (!gameOver) {
+    setMsg('');
+  }
+
+  if (!gameOver) {
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    updateUI();
+  }
+  renderGrid();
+  animateUpgrades(upgraded);
+}
+
+function animateUpgrades(upgraded) {
+  if (!upgraded.length) return;
+  const grid = document.getElementById('grid');
+  upgraded.forEach(u => {
+    const idx = u.r * GRID + u.c;
+    const cell = grid.children[idx];
+    if (cell) {
+      cell.classList.add('upgraded');
+      setTimeout(() => cell.classList.remove('upgraded'), 350);
+    }
+  });
+}
+
+function endGame(winner, r, c) {
+  gameOver = true;
+  const banner = document.getElementById('winner-banner');
+  const color = winner === 1 ? '#7F77DD' : '#534AB7';
+  banner.style.display = 'block';
+  banner.style.borderColor = color;
+  banner.style.color = color;
+  banner.textContent = `Developer ${winner} wins! Tower at (${r+1}, ${c+1}).`;
+  setMsg('Game over. Click "New game" to play again.');
+  updatePlayerInfo();
+}
+
+function updatePlayerInfo() {
+  for (const p of [1, 2]) {
+    const inv = inventory[p];
+    document.getElementById(`p${p}-info`).textContent =
+      `${inv.buildings} buildings · ${inv.parks} parks`;
+  }
+}
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  grid.style.gridTemplateColumns = `repeat(${GRID}, 28px)`;
+  grid.innerHTML = '';
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const b = board[r][c];
+      if (!b) {
+        cell.classList.add('empty');
+      } else if (b.type === 'river') {
+        cell.classList.add('river');
+      } else if (b.type === 'park') {
+        cell.style.background = '#639922';
+        cell.classList.add('park-cell');
+        cell.textContent = '♣';
+      } else if (b.type === 'settle') {
+        const colors = b.player === 1 ? P1_COLORS : P2_COLORS;
+        cell.style.background = colors[b.density - 1];
+        cell.textContent = b.density;
+      }
+      cell.onclick = () => handleClick(r, c);
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function updateUI() {
+  document.getElementById('turn-indicator').textContent = gameOver ? '' : `Developer ${currentPlayer}'s turn`;
+  document.getElementById('p1-panel').classList.toggle('active', currentPlayer === 1 && !gameOver);
+  document.getElementById('p2-panel').classList.toggle('active', currentPlayer === 2 && !gameOver);
+  document.getElementById('settle-swatch').style.background = currentPlayer === 1 ? '#FAC775' : '#9FE1CB';
+  const inv = inventory[currentPlayer];
+  document.getElementById('park-count').textContent = `(${inv.parks})`;
+  document.getElementById('park-btn').disabled = inv.parks <= 0;
+  if (selectedTile === 'park' && inv.parks <= 0) selectTile('settle', document.querySelector('.tile-btn[data-type="settle"]'));
+  updatePlayerInfo();
+}
+
+function selectTile(type, btn) {
+  selectedTile = type;
+  document.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+function setMsg(text) { document.getElementById('msg').textContent = text; }
+
+initGame();
+</script>
+</body>
+</html>

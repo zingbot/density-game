@@ -1,0 +1,91 @@
+# CLAUDE.md — Density Game Project Context
+
+## What This Is
+
+Density is a two-player competitive city-building grid game. Two developers battle to build the densest urban block on a 20×20 grid. First to build a Tower (density level 4) wins.
+
+This is a single-file HTML/CSS/JS game (`index.html`). No build tools, no dependencies, no server.
+
+## Project Tracker (READ FIRST)
+
+Before doing any work, read the Google Doc project tracker:
+https://docs.google.com/document/d/1kRm2Px34TO8kGlyaIeh1TjyxSo4Ywky-2mkdyiNH2hw/edit
+
+This doc is the source of truth for: game rules, task board, decision log, roadmap, known bugs, and open questions. The repo is the source of truth for code.
+
+## After Every Change
+
+1. **Update the Google Doc** with any rule changes, new decisions, version bumps, task status changes, and bug fixes.
+2. **Audit the doc against the code** — check that documented methods, rules, constants, and mechanics match what the code actually does. Flag discrepancies.
+3. **Bump the version** in CHANGELOG.md and in the Google Doc's Version History table.
+4. Skip these steps only if the user explicitly says not to.
+
+## Current Game Rules (v0.6)
+
+- Grid: 20×20
+- Players alternate turns, one placement per turn
+- Buildings start at density 1 (low-rise), upgrade through 4 levels: low-rise → mid-rise → high-rise → tower
+- **Upgrade rule:** A building upgrades +1 when 3 of its 4 orthogonal neighbors are occupied at or above its current density level
+- Upgrades cascade until no more are possible
+- **Rivers:** Predetermined terrain, generated randomly at game start (2 rivers). Can't build on them. Count as wild (any density) for upgrade checks.
+- **Parks:** 3 per player. When placed, give +1 density to YOUR adjacent buildings. Count as wild for upgrade checks.
+- **Win condition:** First player to reach Tower (density 4) wins immediately.
+- Edge tiles (3 neighbors) can upgrade if all 3 qualify. Corner tiles (2 neighbors) cannot upgrade.
+
+## Code Architecture
+
+Single file: `index.html`. Key globals and functions:
+
+### Constants
+- `GRID = 20`
+- `MAX_PARKS = 3`
+- `P1_COLORS = ['#FAC775','#EF9F27','#E24B4A','#7F77DD']`
+- `P2_COLORS = ['#9FE1CB','#1D9E75','#378ADD','#534AB7']`
+- `DENSITY_NAMES = ['low-rise','mid-rise','high-rise','tower']`
+
+### State
+- `board[20][20]` — null or `{type: 'settle'|'park'|'river', player: 1|2, density: 1-4}`
+- `inventory` — `{1: {parks, buildings}, 2: {parks, buildings}}`
+- `currentPlayer` — 1 or 2
+- `gameOver` — boolean
+
+### Key Functions
+- `initGame()` — reset everything, generate rivers, render
+- `generateRivers()` — 2 procedural rivers using random walk with meander
+- `handleClick(r, c)` — main game loop: validate, place, resolve park boosts, cascade, switch player
+- `canUpgrade(r, c)` — true if 3+ neighbors occupied and meet density threshold; rivers/parks return -1 from getEffectiveDensity() and are treated as wild
+- `runUpgradeCascade()` — loop board until stable (safety cap: 50 iterations)
+- `getEffectiveDensity(r, c)` — returns density for settle tiles, -1 for rivers/parks/empty
+- `isOccupiedForSurround(r, c)` — returns true if cell is not null
+- `renderGrid()` — full DOM rebuild of grid
+- `endGame(winner, r, c)` — set gameOver, show banner
+
+## Coding Standards
+
+- Keep everything in one file (`index.html`) unless there's a strong reason to split
+- No external dependencies — the game should work by opening the HTML file in a browser
+- Support dark mode via `prefers-color-scheme` media query
+- Use CSS custom properties for theming
+- Commit messages should reference the version: `v0.7: Add undo/redo system`
+- Test in browser after every change
+
+## File Layout
+
+```
+density-game/
+├── CLAUDE.md        ← you are here
+├── README.md        ← project overview, how to play
+├── index.html       ← the game (single file)
+├── RULES.md         ← full game rules
+├── CHANGELOG.md     ← version history
+└── LICENSE          ← MIT
+```
+
+## Two-Environment Workflow
+
+This project is developed across two Claude environments:
+
+- **Claude.ai (Projects)** — game design, rule discussions, live prototyping with show_widget, playtesting, Google Doc updates
+- **Claude Code** — git operations, code refactoring, file editing, deployment, testing
+
+The Google Doc bridges both. Either environment should read it before starting work to get current context.
