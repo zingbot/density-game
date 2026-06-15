@@ -606,9 +606,9 @@ function canUpgrade(r, c, b = board) {
 // Runs the upgrade cascade on the given board and returns the list of
 // upgrades. Pure: it stops at the first tower but does NOT end the game or
 // touch the screen — the caller decides what to do with a tower.
-function runUpgradeCascade(b = board) {
+function runUpgradeCascade(b = board, alreadyUpgraded = []) {
   const allUpgraded = [];
-  const upgradedThisTurn = new Set();
+  const upgradedThisTurn = new Set(alreadyUpgraded.map(u => `${u.r},${u.c}`));
   let changed = true, safety = 0;
   while (changed && safety < 50) {
     changed = false; safety++;
@@ -658,7 +658,7 @@ function applyPlacement(b, inv, player, r, c, type) {
   // A park boost that already wins ends things immediately, matching the
   // original rule (no further cascade once a tower is reached).
   if (res.winner === null) {
-    res.cascaded = runUpgradeCascade(b);
+    res.cascaded = runUpgradeCascade(b, res.boosted);
     for (const u of res.cascaded) {
       if (u.newDensity === 4) { res.winner = u.player; res.winR = u.r; res.winC = u.c; break; }
     }
