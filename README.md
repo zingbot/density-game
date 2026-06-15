@@ -28,6 +28,29 @@ A two-player competitive city-building grid game. Two developers battle to build
 - **Project tracker:** [Google Doc](https://docs.google.com/document/d/1w-uUtwqzhbHBsa6_QBge0BWkrWKSwFPEYZVzOLWut7Y/edit) (source of truth for project management, decisions, and roadmap)
 - **This repo:** Source of truth for code
 
+## Firebase Setup (Multiplayer)
+
+In the Firebase console, go to **Realtime Database → Rules** and replace the rules with:
+
+```json
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChildren(['state', 'players'])",
+        "state": {
+          ".validate": "newData.hasChild('board') && newData.hasChild('currentPlayer')"
+        }
+      }
+    },
+    ".read": false,
+    ".write": false
+  }
+}
+```
+
 ## Development
 
 No build step. Edit `index.html` and refresh.
