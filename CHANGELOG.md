@@ -2,6 +2,12 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.8 — 2026-06-14
+
+- Added single-player mode vs an AI opponent ("Play vs computer" in the lobby)
+- AI plays strategically: takes winning moves, blocks the opponent's wins, avoids handing the opponent a tower, develops density, and spends parks judiciously
+- Built on a reusable foundation (board-agnostic rule helpers, a side-effect-free move resolver, and a swappable move-picker) so additional difficulty levels can be added without touching game plumbing
+
 ## v0.7.3 — 2026-06-14
 
 - Added a subtle version label to the bottom of the UI

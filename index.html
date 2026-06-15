@@ -181,6 +181,14 @@
       <p>Play on one screen, taking turns.</p>
       <button class="lobby-btn" onclick="startLocalGame()">Play locally</button>
     </div>
+
+    <div class="lobby-divider">or</div>
+
+    <div class="lobby-section">
+      <h2>Play vs computer</h2>
+      <p>Take on an AI opponent. You're Developer 1.</p>
+      <button class="lobby-btn" onclick="startAIGame()">Play vs computer</button>
+    </div>
   </div>
 
   <!-- GAME -->
@@ -238,7 +246,7 @@
       First tower wins.
     </div>
   </div>
-  <div id="version-label">v0.7</div>
+  <div id="version-label">v0.8</div>
 </div>
 
 <script>
@@ -282,6 +290,15 @@ let roomCode = null;
 let roomRef = null;
 let isOnline = false;
 let unsubscribe = null;
+
+// ─── VS COMPUTER ───
+let vsAI = false;            // true when playing against the computer
+const humanPlayer = 1;       // the human is Developer 1
+const aiPlayer = 2;          // the computer is Developer 2
+let aiDifficulty = 'strategic'; // swappable brain: 'easy' (random) or 'strategic'
+// How much each building height is worth when the AI judges a position.
+// Index by density 1–4; a tower (4) is effectively a win.
+const DENSITY_VALUE = [0, 1, 5, 15, 1000];
 
 // ─── LOBBY ───
 function generateRoomCode() {
@@ -358,6 +375,7 @@ function joinRoom() {
 
 function startOnlineGame() {
   isOnline = true;
+  vsAI = false;
   document.getElementById('lobby').style.display = 'none';
   document.getElementById('game-area').style.display = 'block';
   document.getElementById('room-info').innerHTML = 'Room: <strong>' + roomCode + '</strong>';
@@ -393,11 +411,31 @@ function startOnlineGame() {
 
 function startLocalGame() {
   isOnline = false;
+  vsAI = false;
   myPlayer = 0;
   document.getElementById('lobby').style.display = 'none';
   document.getElementById('game-area').style.display = 'block';
   document.getElementById('room-info').innerHTML = 'Local game';
   document.getElementById('connection-status').style.display = 'none';
+  initGame();
+}
+
+function startAIGame() {
+  isOnline = false;
+  vsAI = true;
+  myPlayer = 0;
+  document.getElementById('lobby').style.display = 'none';
+  document.getElementById('game-area').style.display = 'block';
+  document.getElementById('room-info').innerHTML = 'vs Computer';
+  document.getElementById('connection-status').style.display = 'none';
+  // Label the opponent and badge the human's panel.
+  document.querySelector('#p2-panel .player-name').textContent = 'Computer';
+  const p1 = document.getElementById('p1-panel');
+  p1.classList.add('you');
+  const badge = document.createElement('span');
+  badge.className = 'you-badge';
+  badge.textContent = 'YOU';
+  p1.appendChild(badge);
   initGame();
 }
 
@@ -539,44 +577,47 @@ function getNeighbors(r, c) {
   return [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].filter(([nr,nc]) => nr>=0&&nr<GRID&&nc>=0&&nc<GRID);
 }
 
-function getEffectiveDensity(r, c) {
-  const b = board[r][c];
-  if (!b) return -1;
-  if (b.type === 'river' || b.type === 'park') return -1;
-  return b.density;
+// The rule helpers below accept an optional board so the AI can evaluate
+// hypothetical moves on a copy. They default to the live `board`, so every
+// existing caller keeps working unchanged.
+function getEffectiveDensity(r, c, b = board) {
+  const cell = b[r][c];
+  if (!cell) return -1;
+  if (cell.type === 'river' || cell.type === 'park') return -1;
+  return cell.density;
 }
 
-function isOccupiedForSurround(r, c) { return board[r][c] !== null; }
+function isOccupiedForSurround(r, c, b = board) { return b[r][c] !== null; }
 
-function canUpgrade(r, c) {
-  const b = board[r][c];
-  if (!b || b.type !== 'settle' || b.density >= 4) return false;
+function canUpgrade(r, c, b = board) {
+  const cell = b[r][c];
+  if (!cell || cell.type !== 'settle' || cell.density >= 4) return false;
   const neighbors = getNeighbors(r, c);
   if (neighbors.length < 3) return false;
   let q = 0;
   for (const [nr, nc] of neighbors) {
-    if (!isOccupiedForSurround(nr, nc)) continue;
-    const nd = getEffectiveDensity(nr, nc);
-    if (nd === -1 || nd >= b.density) q++;
+    if (!isOccupiedForSurround(nr, nc, b)) continue;
+    const nd = getEffectiveDensity(nr, nc, b);
+    if (nd === -1 || nd >= cell.density) q++;
   }
   return q >= 3;
 }
 
-function runUpgradeCascade() {
+// Runs the upgrade cascade on the given board and returns the list of
+// upgrades. Pure: it stops at the first tower but does NOT end the game or
+// touch the screen — the caller decides what to do with a tower.
+function runUpgradeCascade(b = board) {
   const allUpgraded = [];
   let changed = true, safety = 0;
   while (changed && safety < 50) {
     changed = false; safety++;
     for (let r = 0; r < GRID; r++) {
       for (let c = 0; c < GRID; c++) {
-        if (canUpgrade(r, c)) {
-          board[r][c].density += 1;
-          allUpgraded.push({ r, c, newDensity: board[r][c].density, player: board[r][c].player });
+        if (canUpgrade(r, c, b)) {
+          b[r][c].density += 1;
+          allUpgraded.push({ r, c, newDensity: b[r][c].density, player: b[r][c].player });
           changed = true;
-          if (board[r][c].density === 4) {
-            endGame(board[r][c].player, r, c);
-            return allUpgraded;
-          }
+          if (b[r][c].density === 4) return allUpgraded;
         }
       }
     }
@@ -584,64 +625,257 @@ function runUpgradeCascade() {
   return allUpgraded;
 }
 
-function handleClick(r, c) {
-  if (gameOver) return;
-  if (isOnline && myPlayer !== currentPlayer) { setMsg("Wait for your opponent's move."); return; }
-  if (board[r][c]) {
-    if (board[r][c].type === 'river') setMsg("Can't build on a river.");
-    else setMsg('That space is taken.');
-    return;
-  }
-
-  const inv = inventory[currentPlayer];
-
-  if (selectedTile === 'settle') {
-    board[r][c] = { type: 'settle', player: currentPlayer, density: 1 };
+// ─── SHARED MOVE LOGIC ───
+// Applies one move (settle or park) to the given board + inventory, including
+// park boosts and the upgrade cascade. No screen/network side effects — both
+// real moves and AI "what-if" simulations run through here. Returns a summary:
+//   { ok, type, boosted, cascaded, winner, winR, winC }
+// `ok` is false only when the move is illegal (e.g. a park with none left).
+function applyPlacement(b, inv, player, r, c, type) {
+  const res = { ok: true, type, boosted: [], cascaded: [], winner: null, winR: null, winC: null };
+  if (type === 'settle') {
+    b[r][c] = { type: 'settle', player, density: 1 };
     inv.buildings++;
-  } else if (selectedTile === 'park') {
-    if (inv.parks <= 0) { setMsg('No parks left!'); return; }
-    board[r][c] = { type: 'park', player: currentPlayer };
+  } else { // park
+    if (inv.parks <= 0) { res.ok = false; return res; }
+    b[r][c] = { type: 'park', player };
     inv.parks--;
-    const boosted = [];
     for (const [nr, nc] of getNeighbors(r, c)) {
-      const nb = board[nr][nc];
+      const nb = b[nr][nc];
       if (nb && nb.type === 'settle' && nb.density < 4) {
         nb.density += 1;
-        boosted.push({ r: nr, c: nc, newDensity: nb.density, player: nb.player });
-        if (nb.density === 4) {
-          endGame(nb.player, nr, nc);
-          pushState({ winner: nb.player, winR: nr, winC: nc, gameOver: true });
-          renderGrid(); animateUpgrades(boosted); updateUI();
-          return;
+        res.boosted.push({ r: nr, c: nc, newDensity: nb.density, player: nb.player });
+        if (nb.density === 4 && res.winner === null) {
+          res.winner = nb.player; res.winR = nr; res.winC = nc;
         }
       }
     }
-    if (boosted.length > 0) {
-      const cascaded = runUpgradeCascade();
-      const all = [...boosted, ...cascaded];
-      const names = all.map(u => `(${u.r+1},${u.c+1}) → ${DENSITY_NAMES[u.newDensity-1]}`).join(', ');
-      setMsg('Park boost! ' + names);
-      if (!gameOver) { currentPlayer = currentPlayer === 1 ? 2 : 1; updateUI(); }
-      pushState(gameOver ? { winner: board[all[all.length-1].r][all[all.length-1].c].player, winR: all[all.length-1].r, winC: all[all.length-1].c, gameOver: true } : {});
-      renderGrid(); animateUpgrades(all);
-      return;
+  }
+  // A park boost that already wins ends things immediately, matching the
+  // original rule (no further cascade once a tower is reached).
+  if (res.winner === null) {
+    res.cascaded = runUpgradeCascade(b);
+    for (const u of res.cascaded) {
+      if (u.newDensity === 4) { res.winner = u.player; res.winR = u.r; res.winC = u.c; break; }
     }
   }
+  return res;
+}
 
-  const upgraded = runUpgradeCascade();
+// `forcedType` is supplied by the computer; for human clicks it's undefined.
+function handleClick(r, c, forcedType) {
+  if (gameOver) return;
+  const isAIMove = forcedType !== undefined;
+  if (!isAIMove) {
+    if (vsAI && currentPlayer === aiPlayer) return; // computer's turn — ignore clicks
+    if (isOnline && myPlayer !== currentPlayer) { setMsg("Wait for your opponent's move."); return; }
+  }
+  if (board[r][c]) {
+    if (!isAIMove) setMsg(board[r][c].type === 'river' ? "Can't build on a river." : 'That space is taken.');
+    return;
+  }
 
-  if (upgraded.length > 0 && !gameOver) {
-    const names = upgraded.map(u => {
-      const who = u.player === currentPlayer ? '' : ' (opponent!)';
-      return `(${u.r+1},${u.c+1}) → ${DENSITY_NAMES[u.newDensity-1]}${who}`;
-    }).join(', ');
-    setMsg('Upgraded: ' + names);
-  } else if (!gameOver) { setMsg(''); }
+  const type = isAIMove ? forcedType : selectedTile;
+  const inv = inventory[currentPlayer];
+  if (type === 'park' && inv.parks <= 0) { if (!isAIMove) setMsg('No parks left!'); return; }
 
-  if (!gameOver) { currentPlayer = currentPlayer === 1 ? 2 : 1; updateUI(); }
-  pushState(gameOver ? { winner: upgraded[upgraded.length-1]?.player, winR: upgraded[upgraded.length-1]?.r, winC: upgraded[upgraded.length-1]?.c, gameOver: true } : {});
+  const res = applyPlacement(board, inv, currentPlayer, r, c, type);
+  const animations = [...res.boosted, ...res.cascaded];
+
+  if (res.winner !== null) endGame(res.winner, res.winR, res.winC);
+
+  if (!gameOver) {
+    if (type === 'park' && res.boosted.length > 0) {
+      const names = animations.map(u => `(${u.r+1},${u.c+1}) → ${DENSITY_NAMES[u.newDensity-1]}`).join(', ');
+      setMsg('Park boost! ' + names);
+    } else if (animations.length > 0) {
+      const names = animations.map(u => {
+        const who = u.player === currentPlayer ? '' : ' (opponent!)';
+        return `(${u.r+1},${u.c+1}) → ${DENSITY_NAMES[u.newDensity-1]}${who}`;
+      }).join(', ');
+      setMsg('Upgraded: ' + names);
+    } else { setMsg(''); }
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+  }
+
+  updateUI();
+  pushState(gameOver ? { winner: res.winner, winR: res.winR, winC: res.winC, gameOver: true } : {});
   renderGrid();
-  animateUpgrades(upgraded);
+  animateUpgrades(animations);
+  maybeScheduleAI();
+}
+
+// ─── AI FOUNDATION (shared by every difficulty) ───
+function cloneBoard(b = board) {
+  return b.map(row => row.map(cell => cell ? { ...cell } : null));
+}
+function cloneInventory(inv = inventory) {
+  return { 1: { ...inv[1] }, 2: { ...inv[2] } };
+}
+
+// Every empty, buildable cell — once as a building, and (if parks remain) once as a park.
+function listLegalMoves(player, b = board, inv = inventory) {
+  const moves = [];
+  const canPark = inv[player].parks > 0;
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      if (b[r][c]) continue; // occupied or river
+      moves.push({ r, c, type: 'settle' });
+      if (canPark) moves.push({ r, c, type: 'park' });
+    }
+  }
+  return moves;
+}
+
+// Try a move on a throwaway copy — used by smarter difficulties to score moves.
+// (Easy doesn't need it yet, but it's part of the shared foundation.)
+function simulateMove(player, move) {
+  const b = cloneBoard();
+  const inv = cloneInventory();
+  const result = applyPlacement(b, inv, player, move.r, move.c, move.type);
+  return { board: b, inventory: inv, result };
+}
+
+// The swappable "brain". 'easy' plays random; 'strategic' scores moves by
+// simulating their outcome. Adding another level later means adding a branch
+// here — the plumbing above never changes.
+function chooseAIMove(player, difficulty) {
+  if (difficulty === 'easy') return randomMove(player);
+  try {
+    return chooseStrategicMove(player) || randomMove(player);
+  } catch (e) {
+    console.warn('AI error, falling back to random:', e);
+    return randomMove(player);
+  }
+}
+
+function randomMove(player) {
+  const moves = listLegalMoves(player);
+  if (moves.length === 0) return null;
+  return moves[Math.floor(Math.random() * moves.length)];
+}
+
+// Only consider moves that can actually matter: buildings next to something
+// (so they can take part in upgrades) and parks next to one of my own
+// upgradeable buildings. This keeps the AI focused and fast.
+function candidateMoves(player, b = board, inv = inventory) {
+  const moves = [];
+  const canPark = inv[player].parks > 0;
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      if (b[r][c]) continue;
+      const neigh = getNeighbors(r, c);
+      if (neigh.some(([nr, nc]) => b[nr][nc] !== null)) moves.push({ r, c, type: 'settle' });
+      if (canPark && neigh.some(([nr, nc]) => {
+        const x = b[nr][nc];
+        return x && x.type === 'settle' && x.player === player && x.density < 4;
+      })) moves.push({ r, c, type: 'park' });
+    }
+  }
+  // Opening fallback: nothing adjacent yet (e.g. only rivers) → seed near center.
+  if (moves.length === 0) {
+    const mid = Math.floor(GRID / 2);
+    if (!b[mid][mid]) moves.push({ r: mid, c: mid, type: 'settle' });
+    else moves.push(...listLegalMoves(player, b, inv).slice(0, 1));
+  }
+  return moves;
+}
+
+// How many of a building's neighbors already meet the upgrade condition
+// (occupied, and wild or at least as tall). More = closer to growing.
+function qualifyingNeighborCount(r, c, b) {
+  const cell = b[r][c];
+  let q = 0;
+  for (const [nr, nc] of getNeighbors(r, c)) {
+    if (b[nr][nc] === null) continue;
+    const nd = getEffectiveDensity(nr, nc, b);
+    if (nd === -1 || nd >= cell.density) q++;
+  }
+  return q;
+}
+
+// Score a board from one player's point of view: reward tall buildings and
+// buildings that are close to upgrading.
+function evaluateBoard(b, player) {
+  let score = 0;
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const cell = b[r][c];
+      if (!cell || cell.type !== 'settle' || cell.player !== player) continue;
+      score += DENSITY_VALUE[cell.density];
+      if (cell.density < 4) {
+        const q = qualifyingNeighborCount(r, c, b);
+        score += q * 2;          // progress toward the 3 neighbors needed
+        if (q >= 2) score += 4;  // one neighbor away from growing
+      }
+    }
+  }
+  return score;
+}
+
+// True if `player` has any move that immediately makes a tower (wins) on board b.
+function hasImmediateWin(b, inv, player) {
+  for (const mv of candidateMoves(player, b, inv)) {
+    const bb = cloneBoard(b);
+    const ii = cloneInventory(inv);
+    if (applyPlacement(bb, ii, player, mv.r, mv.c, mv.type).winner === player) return true;
+  }
+  return false;
+}
+
+function chooseStrategicMove(player) {
+  const opp = player === 1 ? 2 : 1;
+  const candidates = candidateMoves(player);
+  if (candidates.length === 0) return null;
+
+  const scored = [];
+  for (const mv of candidates) {
+    const sim = simulateMove(player, mv);
+    const res = sim.result;
+    if (res.winner === player) return mv;   // a move that wins now — just take it
+    if (res.winner === opp) continue;        // never hand the opponent a tower
+
+    let score = evaluateBoard(sim.board, player) - evaluateBoard(sim.board, opp);
+    if (mv.type === 'park') {
+      // Parks are scarce (only 3): require a real payoff to spend one.
+      const myBoosts = res.boosted.filter(u => u.player === player).length;
+      const oppBoosts = res.boosted.filter(u => u.player === opp).length;
+      score += myBoosts * 6 - oppBoosts * 12 - 8;
+    }
+    scored.push({ mv, score, sim });
+  }
+  if (scored.length === 0) return randomMove(player); // every move loses — just play
+
+  scored.sort((a, b) => b.score - a.score);
+
+  // Check whether a move leaves the opponent an instant winning reply, and
+  // heavily avoid those (this is also how the AI blocks the opponent's wins).
+  // If the opponent is ALREADY one move from winning we must check every
+  // candidate to be sure we find the blocking move; otherwise the top few are
+  // enough to avoid accidentally setting them up.
+  const opponentThreatens = hasImmediateWin(board, inventory, opp);
+  const refine = opponentThreatens ? scored.length : Math.min(scored.length, 12);
+  for (let i = 0; i < refine; i++) {
+    if (hasImmediateWin(scored[i].sim.board, scored[i].sim.inventory, opp)) scored[i].score -= 1000;
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].mv;
+}
+
+function maybeScheduleAI() {
+  if (vsAI && !gameOver && currentPlayer === aiPlayer) {
+    setMsg('Computer is thinking…');
+    setTimeout(runAITurn, 550);
+  }
+}
+
+function runAITurn() {
+  if (gameOver || !vsAI || currentPlayer !== aiPlayer) return;
+  const move = chooseAIMove(aiPlayer, aiDifficulty);
+  if (!move) { // no legal move left — pass the turn back
+    currentPlayer = humanPlayer; updateUI(); renderGrid(); return;
+  }
+  handleClick(move.r, move.c, move.type);
 }
 
 function endGame(winner, r, c) {
@@ -653,8 +887,8 @@ function endGame(winner, r, c) {
 function showWinBanner(winner, r, c) {
   const banner = document.getElementById('winner-banner');
   const color = winner === 1 ? '#7F77DD' : '#534AB7';
-  const isMe = (isOnline && winner === myPlayer);
-  const label = isOnline ? (isMe ? 'You win!' : 'You lose!') : `Developer ${winner} wins!`;
+  const isMe = (isOnline && winner === myPlayer) || (vsAI && winner === humanPlayer);
+  const label = (isOnline || vsAI) ? (isMe ? 'You win!' : 'You lose!') : `Developer ${winner} wins!`;
   banner.style.display = 'block';
   banner.style.borderColor = color;
   banner.style.color = color;
@@ -676,7 +910,7 @@ function renderGrid() {
   const grid = document.getElementById('grid');
   grid.style.gridTemplateColumns = `repeat(${GRID}, 28px)`;
   grid.innerHTML = '';
-  const notMyTurn = isOnline && myPlayer !== currentPlayer && !gameOver;
+  const notMyTurn = !gameOver && ((isOnline && myPlayer !== currentPlayer) || (vsAI && currentPlayer === aiPlayer));
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
       const cell = document.createElement('div');
@@ -698,16 +932,20 @@ function renderGrid() {
 }
 
 function updateUI() {
-  const turnLabel = isOnline
-    ? (myPlayer === currentPlayer ? 'Your turn' : "Opponent's turn")
-    : `Developer ${currentPlayer}'s turn`;
+  let turnLabel;
+  if (isOnline) turnLabel = myPlayer === currentPlayer ? 'Your turn' : "Opponent's turn";
+  else if (vsAI) turnLabel = currentPlayer === humanPlayer ? 'Your turn' : "Computer's turn";
+  else turnLabel = `Developer ${currentPlayer}'s turn`;
   document.getElementById('turn-indicator').textContent = gameOver ? '' : turnLabel;
   document.getElementById('p1-panel').classList.toggle('active', currentPlayer === 1 && !gameOver);
   document.getElementById('p2-panel').classList.toggle('active', currentPlayer === 2 && !gameOver);
-  document.getElementById('settle-swatch').style.background = currentPlayer === 1 ? '#FAC775' : '#9FE1CB';
-  const inv = inventory[isOnline ? myPlayer : currentPlayer] || { parks: 0, buildings: 0 };
+  // Whose tools the controls represent: my seat online, the human vs computer, else the active player.
+  const controlPlayer = isOnline ? myPlayer : (vsAI ? humanPlayer : currentPlayer);
+  const notControlsTurn = (isOnline && myPlayer !== currentPlayer) || (vsAI && currentPlayer !== humanPlayer);
+  document.getElementById('settle-swatch').style.background = controlPlayer === 1 ? '#FAC775' : '#9FE1CB';
+  const inv = inventory[controlPlayer] || { parks: 0, buildings: 0 };
   document.getElementById('park-count').textContent = `(${inv.parks})`;
-  document.getElementById('park-btn').disabled = inv.parks <= 0 || (isOnline && myPlayer !== currentPlayer);
+  document.getElementById('park-btn').disabled = inv.parks <= 0 || notControlsTurn;
   if (selectedTile === 'park' && inv.parks <= 0) selectTile('settle', document.querySelector('.tile-btn[data-type="settle"]'));
   updatePlayerInfo();
 }
