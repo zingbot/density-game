@@ -608,13 +608,17 @@ function canUpgrade(r, c, b = board) {
 // touch the screen — the caller decides what to do with a tower.
 function runUpgradeCascade(b = board) {
   const allUpgraded = [];
+  const upgradedThisTurn = new Set();
   let changed = true, safety = 0;
   while (changed && safety < 50) {
     changed = false; safety++;
     for (let r = 0; r < GRID; r++) {
       for (let c = 0; c < GRID; c++) {
+        const key = `${r},${c}`;
+        if (upgradedThisTurn.has(key)) continue;
         if (canUpgrade(r, c, b)) {
           b[r][c].density += 1;
+          upgradedThisTurn.add(key);
           allUpgraded.push({ r, c, newDensity: b[r][c].density, player: b[r][c].player });
           changed = true;
           if (b[r][c].density === 4) return allUpgraded;
