@@ -242,7 +242,7 @@
     </div>
     <div class="rule-box">
       Upgrade rule: 3 of 4 neighbors must be occupied at your density level or higher.
-      Rivers are fixed terrain. Parks give +1 density to ALL adjacent buildings — yours and your opponent's — when placed (3 per developer).
+      Rivers are fixed terrain and count only as low-rise neighbors. Parks give +1 density to ALL adjacent buildings — yours and your opponent's — when placed (3 per developer, count as any level).
       First tower wins.
     </div>
   </div>
@@ -278,7 +278,7 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.8.3';
+const VERSION = 'v0.9';
 document.getElementById('version-label').textContent = VERSION;
 const GRID = 20;
 const MAX_PARKS = 3;
@@ -584,7 +584,8 @@ function getNeighbors(r, c) {
 function getEffectiveDensity(r, c, b = board) {
   const cell = b[r][c];
   if (!cell) return -1;
-  if (cell.type === 'river' || cell.type === 'park') return -1;
+  if (cell.type === 'park') return -1;  // wild: parks are scarce (3 per player)
+  if (cell.type === 'river') return 1;  // v0.9: rivers count as low-rise only
   return cell.density;
 }
 

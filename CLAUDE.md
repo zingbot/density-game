@@ -19,14 +19,14 @@ The tracker is the source of truth for: game rules, task board, decision log, ro
 3. **Bump the version** in CHANGELOG.md, in the `VERSION` constant in index.html, and in the Notion tracker's version history.
 4. Skip these steps only if the user explicitly says not to.
 
-## Current Game Rules (v0.8.3)
+## Current Game Rules (v0.9)
 
 - Grid: 20×20
 - Players alternate turns, one placement per turn
 - Buildings start at density 1 (low-rise), upgrade through 4 levels: low-rise → mid-rise → high-rise → tower
 - **Upgrade rule:** A building upgrades +1 when 3 of its 4 orthogonal neighbors are occupied at or above its current density level
 - Upgrades cascade until no more are possible, but each tile can upgrade at most +1 per turn (v0.8.1), and a park-boosted tile can't also cascade-upgrade the same turn (v0.8.2)
-- **Rivers:** Predetermined terrain, generated randomly at game start (2 rivers). Can't build on them. Count as wild (any density) for upgrade checks.
+- **Rivers:** Predetermined terrain, generated randomly at game start (2 rivers). Can't build on them. Count as low-rise (level 1) for upgrade checks (v0.9; was wild before), so they only help the low-rise → mid-rise upgrade.
 - **Parks:** 3 per player. When placed, give +1 density to ALL adjacent buildings — both players' (changed in v0.7.2). Count as wild for upgrade checks.
 - **Win condition:** First player to reach Tower (density 4) wins immediately.
 - Edge tiles (3 neighbors) can upgrade if all 3 qualify. Corner tiles (2 neighbors) cannot upgrade.
@@ -52,9 +52,9 @@ Single file: `index.html`. Key globals and functions:
 - `initGame()` — reset everything, generate rivers, render
 - `generateRivers()` — 2 procedural rivers using random walk with meander
 - `handleClick(r, c)` — main game loop: validate, place, resolve park boosts, cascade, switch player
-- `canUpgrade(r, c)` — true if 3+ neighbors occupied and meet density threshold; rivers/parks return -1 from getEffectiveDensity() and are treated as wild
+- `canUpgrade(r, c)` — true if 3+ neighbors occupied and meet density threshold; parks return -1 from getEffectiveDensity() (wild), rivers return 1 (low-rise only, v0.9)
 - `runUpgradeCascade()` — loop board until stable (safety cap: 50 iterations)
-- `getEffectiveDensity(r, c)` — returns density for settle tiles, -1 for rivers/parks/empty
+- `getEffectiveDensity(r, c)` — returns density for settle tiles, -1 for parks/empty (wild), 1 for rivers
 - `isOccupiedForSurround(r, c)` — returns true if cell is not null
 - `renderGrid()` — full DOM rebuild of grid
 - `endGame(winner, r, c)` — set gameOver, show banner

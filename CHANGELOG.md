@@ -2,6 +2,11 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.9 — 2026-07-03
+
+- **Rule change:** rivers now count as low-rise (level 1) neighbors for upgrade checks, instead of matching any density level (wild). Riverbanks still help early growth but no longer count toward high-rise or tower upgrades.
+- Why: wild rivers made riverbank tiles objectively the best land on the board — a free permanent qualifying neighbor at every level, and river-adjacent edge tiles needed only 2 real neighbors to reach tower. The AI exploited this relentlessly. Parks keep their wild status since they're limited to 3 per player.
+
 ## v0.8.3 — 2026-07-03
 
 - Fixed AI simulation bug: the AI's what-if simulations were handed the wrong inventory object, so simulated moves never spent parks (and the park-legality check inside simulations never fired)
