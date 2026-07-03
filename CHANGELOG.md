@@ -2,6 +2,24 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.8.3 — 2026-07-03
+
+- Fixed AI simulation bug: the AI's what-if simulations were handed the wrong inventory object, so simulated moves never spent parks (and the park-legality check inside simulations never fired)
+- Room code entry now requires exactly 5 characters, with a clearer error message (was accepting 4–6 and reporting "Room not found" on typos)
+- Version label now comes from a single VERSION constant in the code, so it can't fall out of date again
+- Fixed stale on-screen rules text: parks boost ALL adjacent buildings (both players'), as changed in v0.7.2
+- Synced RULES.md and CLAUDE.md with current rules (park boost, v0.8.1 cascade cap, v0.8.2 park-boost interaction)
+- Removed an unused leftover variable
+- Backfilled missing v0.8.1 and v0.8.2 changelog entries below
+
+## v0.8.2 — 2026-07-03
+
+- Fixed park boost double-dip: a building boosted by a park no longer also cascade-upgrades in the same turn
+
+## v0.8.1 — 2026-07-03
+
+- Fixed cascade bug: each building can now upgrade at most +1 per turn
+
 ## v0.8 — 2026-06-14
 
 - Added single-player mode vs an AI opponent ("Play vs computer" in the lobby)

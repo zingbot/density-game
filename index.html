@@ -169,7 +169,7 @@
     <div class="lobby-section">
       <h2>Join a game</h2>
       <p>Enter the room code from your opponent.</p>
-      <input class="lobby-input" id="join-code-input" placeholder="Enter room code" maxlength="6" />
+      <input class="lobby-input" id="join-code-input" placeholder="Enter room code" maxlength="5" />
       <button class="lobby-btn" onclick="joinRoom()">Join room</button>
       <div class="error-msg" id="join-error"></div>
     </div>
@@ -242,11 +242,11 @@
     </div>
     <div class="rule-box">
       Upgrade rule: 3 of 4 neighbors must be occupied at your density level or higher.
-      Rivers are fixed terrain. Parks give +1 density to all YOUR adjacent buildings when placed (3 per developer).
+      Rivers are fixed terrain. Parks give +1 density to ALL adjacent buildings — yours and your opponent's — when placed (3 per developer).
       First tower wins.
     </div>
   </div>
-  <div id="version-label">v0.8</div>
+  <div id="version-label"></div>
 </div>
 
 <script>
@@ -278,6 +278,8 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
+const VERSION = 'v0.8.3';
+document.getElementById('version-label').textContent = VERSION;
 const GRID = 20;
 const MAX_PARKS = 3;
 const P1_COLORS = ['#FAC775','#EF9F27','#E24B4A','#7F77DD'];
@@ -289,7 +291,6 @@ let myPlayer = 0; // 0 = local, 1 = player 1, 2 = player 2
 let roomCode = null;
 let roomRef = null;
 let isOnline = false;
-let unsubscribe = null;
 
 // ─── VS COMPUTER ───
 let vsAI = false;            // true when playing against the computer
@@ -350,8 +351,8 @@ function joinRoom() {
     return;
   }
   const code = document.getElementById('join-code-input').value.trim().toUpperCase();
-  if (!code || code.length < 4) {
-    document.getElementById('join-error').textContent = 'Enter a valid room code.';
+  if (code.length !== 5) {
+    document.getElementById('join-error').textContent = 'Room codes are 5 characters.';
     return;
   }
   roomCode = code;
@@ -736,7 +737,7 @@ function listLegalMoves(player, b = board, inv = inventory) {
 function simulateMove(player, move) {
   const b = cloneBoard();
   const inv = cloneInventory();
-  const result = applyPlacement(b, inv, player, move.r, move.c, move.type);
+  const result = applyPlacement(b, inv[player], player, move.r, move.c, move.type);
   return { board: b, inventory: inv, result };
 }
 
@@ -822,7 +823,7 @@ function hasImmediateWin(b, inv, player) {
   for (const mv of candidateMoves(player, b, inv)) {
     const bb = cloneBoard(b);
     const ii = cloneInventory(inv);
-    if (applyPlacement(bb, ii, player, mv.r, mv.c, mv.type).winner === player) return true;
+    if (applyPlacement(bb, ii[player], player, mv.r, mv.c, mv.type).winner === player) return true;
   }
   return false;
 }

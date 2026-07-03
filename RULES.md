@@ -1,4 +1,4 @@
-# Density — Game Rules (v0.6)
+# Density — Game Rules (v0.8.3)
 
 ## Overview
 
@@ -21,8 +21,8 @@ Density is a two-player competitive city-building game on a 20×20 grid. Two dev
 
 ### Park
 - Placed by either player. Limited to **3 per developer**.
-- When placed, all **your own** adjacent buildings immediately receive +1 density.
-- This boost can trigger cascading upgrades.
+- When placed, **all adjacent buildings — yours and your opponent's** — immediately receive +1 density (changed in v0.7.2; was owner-only before).
+- This boost can trigger cascading upgrades in other tiles, but a building boosted by the park cannot also cascade-upgrade in the same turn (v0.8.2).
 - Parks count as occupied for surround checks and satisfy any density level (wild).
 - Parks cannot be upgraded and have no density level of their own.
 
@@ -55,6 +55,7 @@ A building upgrades +1 density when **3 of its 4 orthogonal neighbors** are occu
 - Rivers and parks count as occupied and satisfy any density level (wild) for upgrade checks.
 - Any player's buildings count — you can be upgraded by your opponent's tiles surrounding yours.
 - Upgrades cascade: if an upgrade causes another tile to meet its upgrade condition, that tile upgrades too. This continues until no more upgrades are possible.
+- Each building can upgrade at most **+1 per turn** (v0.8.1) — a tile that upgraded this turn can't upgrade again until a later turn.
 
 ### Upgrade Thresholds
 
@@ -76,6 +77,6 @@ The first player to have any of their buildings reach **Tower (density 4)** wins
 ## Strategy Notes
 
 - Building near your own tiles creates density clusters, but building near your opponent's tiles can inadvertently upgrade theirs.
-- Parks are powerful tempo plays — save them for moments where the +1 boost can trigger a cascade toward tower.
+- Parks are powerful tempo plays — save them for moments where the +1 boost can trigger a cascade toward tower. But place them carefully: they boost your opponent's adjacent buildings too.
 - Rivers create natural chokepoints and districts. Building along a river means one side is already "occupied" for surround checks.
 - Edge tiles only need 3 qualifying neighbors (which is all they have), so river-adjacent edges can be strong positions.

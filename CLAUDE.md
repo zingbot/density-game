@@ -8,27 +8,26 @@ This is a single-file HTML/CSS/JS game (`index.html`). No build tools, no depend
 
 ## Project Tracker (READ FIRST)
 
-Before doing any work, read the Google Doc project tracker:
-https://docs.google.com/document/d/1kRm2Px34TO8kGlyaIeh1TjyxSo4Ywky-2mkdyiNH2hw/edit
+The project tracker lives in **Notion** (it moved there from a Google Doc in June 2026 — ignore any stale Google Doc references). Ask the user for the Notion page if you can't access it.
 
-This doc is the source of truth for: game rules, task board, decision log, roadmap, known bugs, and open questions. The repo is the source of truth for code.
+The tracker is the source of truth for: game rules, task board, decision log, roadmap, known bugs, and open questions. The repo is the source of truth for code.
 
 ## After Every Change
 
-1. **Update the Google Doc** with any rule changes, new decisions, version bumps, task status changes, and bug fixes.
-2. **Audit the doc against the code** — check that documented methods, rules, constants, and mechanics match what the code actually does. Flag discrepancies.
-3. **Bump the version** in CHANGELOG.md and in the Google Doc's Version History table.
+1. **Update the Notion tracker** with any rule changes, new decisions, version bumps, task status changes, and bug fixes.
+2. **Audit the tracker against the code** — check that documented methods, rules, constants, and mechanics match what the code actually does. Flag discrepancies.
+3. **Bump the version** in CHANGELOG.md, in the `VERSION` constant in index.html, and in the Notion tracker's version history.
 4. Skip these steps only if the user explicitly says not to.
 
-## Current Game Rules (v0.6)
+## Current Game Rules (v0.8.3)
 
 - Grid: 20×20
 - Players alternate turns, one placement per turn
 - Buildings start at density 1 (low-rise), upgrade through 4 levels: low-rise → mid-rise → high-rise → tower
 - **Upgrade rule:** A building upgrades +1 when 3 of its 4 orthogonal neighbors are occupied at or above its current density level
-- Upgrades cascade until no more are possible
+- Upgrades cascade until no more are possible, but each tile can upgrade at most +1 per turn (v0.8.1), and a park-boosted tile can't also cascade-upgrade the same turn (v0.8.2)
 - **Rivers:** Predetermined terrain, generated randomly at game start (2 rivers). Can't build on them. Count as wild (any density) for upgrade checks.
-- **Parks:** 3 per player. When placed, give +1 density to YOUR adjacent buildings. Count as wild for upgrade checks.
+- **Parks:** 3 per player. When placed, give +1 density to ALL adjacent buildings — both players' (changed in v0.7.2). Count as wild for upgrade checks.
 - **Win condition:** First player to reach Tower (density 4) wins immediately.
 - Edge tiles (3 neighbors) can upgrade if all 3 qualify. Corner tiles (2 neighbors) cannot upgrade.
 
