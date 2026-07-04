@@ -83,6 +83,16 @@
     .lobby-divider::before { left: 0; }
     .lobby-divider::after { right: 0; }
     .error-msg { font-size: 12px; color: #E24B4A; margin-top: 8px; text-align: center; }
+    .difficulty-row { display: flex; gap: 6px; margin-bottom: 8px; }
+    .diff-btn {
+      flex: 1; padding: 8px; border-radius: var(--radius-md);
+      border: 1px solid var(--border-secondary); background: var(--bg-primary);
+      cursor: pointer; font-size: 13px; color: var(--text-primary);
+      transition: background 0.1s, border-color 0.15s;
+    }
+    .diff-btn:hover { background: var(--bg-secondary); }
+    .diff-btn.selected { border-color: var(--accent); background: var(--bg-secondary); font-weight: 500; }
+    .lobby-section p.diff-hint { font-size: 11px; color: var(--text-tertiary); margin-bottom: 10px; }
     .connection-badge {
       display: inline-flex; align-items: center; gap: 5px;
       padding: 3px 8px; border-radius: 12px; font-size: 11px;
@@ -187,6 +197,12 @@
     <div class="lobby-section">
       <h2>Play vs computer</h2>
       <p>Take on an AI opponent. You're Developer 1.</p>
+      <div class="difficulty-row">
+        <button class="diff-btn" data-diff="easy" onclick="selectDifficulty('easy', this)">Easy</button>
+        <button class="diff-btn selected" data-diff="medium" onclick="selectDifficulty('medium', this)">Medium</button>
+        <button class="diff-btn" data-diff="hard" onclick="selectDifficulty('hard', this)">Hard</button>
+      </div>
+      <p class="diff-hint">Hard is the classic AI from earlier versions.</p>
       <button class="lobby-btn" onclick="startAIGame()">Play vs computer</button>
     </div>
   </div>
@@ -278,7 +294,7 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.9.1';
+const VERSION = 'v0.10';
 document.getElementById('version-label').textContent = VERSION;
 const GRID = 20;
 const MAX_PARKS = 3;
@@ -317,10 +333,18 @@ let isOnline = false;
 let vsAI = false;            // true when playing against the computer
 const humanPlayer = 1;       // the human is Developer 1
 const aiPlayer = 2;          // the computer is Developer 2
-let aiDifficulty = 'strategic'; // swappable brain: 'easy' (random) or 'strategic'
+let aiDifficulty = 'medium';    // 'easy' | 'medium' | 'hard' — set from the lobby picker
 // How much each building height is worth when the AI judges a position.
 // Index by density 1–4; a tower (4) is effectively a win.
 const DENSITY_VALUE = [0, 1, 5, 15, 1000];
+// Difficulty personalities. topChoices = odds of playing the 1st/2nd/3rd best
+// move (Hard always plays the best). vigilance = chance per turn of running
+// the "does this leave the opponent an instant win?" check — Medium's lapses
+// are what make it beatable.
+const AI_STYLES = {
+  medium: { topChoices: [0.5, 0.3, 0.2], vigilance: 0.75 },
+  hard:   { topChoices: [1],             vigilance: 1 },
+};
 
 // ─── LOBBY ───
 function generateRoomCode() {
@@ -442,6 +466,12 @@ function startLocalGame() {
   initGame();
 }
 
+function selectDifficulty(level, btn) {
+  aiDifficulty = level;
+  document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
 function startAIGame() {
   isOnline = false;
   vsAI = true;
@@ -450,8 +480,9 @@ function startAIGame() {
   document.getElementById('game-area').style.display = 'block';
   document.getElementById('room-info').innerHTML = 'vs Computer';
   document.getElementById('connection-status').style.display = 'none';
-  // Label the opponent and badge the human's panel.
-  document.querySelector('#p2-panel .player-name').textContent = 'Computer';
+  // Label the opponent (with difficulty) and badge the human's panel.
+  const diffLabel = aiDifficulty[0].toUpperCase() + aiDifficulty.slice(1);
+  document.querySelector('#p2-panel .player-name').textContent = 'Computer · ' + diffLabel;
   const p1 = document.getElementById('p1-panel');
   p1.classList.add('you');
   const badge = document.createElement('span');
@@ -763,17 +794,25 @@ function simulateMove(player, move) {
   return { board: b, inventory: inv, result };
 }
 
-// The swappable "brain". 'easy' plays random; 'strategic' scores moves by
-// simulating their outcome. Adding another level later means adding a branch
-// here — the plumbing above never changes.
+// The swappable "brain". Easy plays random-but-sensible; Medium and Hard both
+// use the strategic machinery with different personalities (see AI_STYLES).
 function chooseAIMove(player, difficulty) {
-  if (difficulty === 'easy') return randomMove(player);
   try {
-    return chooseStrategicMove(player) || randomMove(player);
+    if (difficulty === 'easy') return easyMove(player) || randomMove(player);
+    const style = AI_STYLES[difficulty] || AI_STYLES.hard;
+    return chooseStrategicMove(player, style) || randomMove(player);
   } catch (e) {
     console.warn('AI error, falling back to random:', e);
     return randomMove(player);
   }
+}
+
+// Easy: a random pick among sensible moves (adjacent to the existing city).
+// No scoring, no win-taking, no blocking — builds a plausible city, no plan.
+function easyMove(player) {
+  const moves = candidateMoves(player);
+  if (moves.length === 0) return null;
+  return moves[Math.floor(Math.random() * moves.length)];
 }
 
 function randomMove(player) {
@@ -850,7 +889,7 @@ function hasImmediateWin(b, inv, player) {
   return false;
 }
 
-function chooseStrategicMove(player) {
+function chooseStrategicMove(player, style = AI_STYLES.hard) {
   const opp = player === 1 ? 2 : 1;
   const candidates = candidateMoves(player);
   if (candidates.length === 0) return null;
@@ -880,13 +919,32 @@ function chooseStrategicMove(player) {
   // If the opponent is ALREADY one move from winning we must check every
   // candidate to be sure we find the blocking move; otherwise the top few are
   // enough to avoid accidentally setting them up.
-  const opponentThreatens = hasImmediateWin(board, inventory, opp);
-  const refine = opponentThreatens ? scored.length : Math.min(scored.length, 12);
-  for (let i = 0; i < refine; i++) {
-    if (hasImmediateWin(scored[i].sim.board, scored[i].sim.inventory, opp)) scored[i].score -= 1000;
+  // Medium sometimes skips this check entirely (style.vigilance < 1) — those
+  // lapses are the window where a sneaky setup can beat it.
+  if (Math.random() < style.vigilance) {
+    const opponentThreatens = hasImmediateWin(board, inventory, opp);
+    const refine = opponentThreatens ? scored.length : Math.min(scored.length, 12);
+    for (let i = 0; i < refine; i++) {
+      if (hasImmediateWin(scored[i].sim.board, scored[i].sim.inventory, opp)) scored[i].score -= 1000;
+    }
+    scored.sort((a, b) => b.score - a.score);
   }
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0].mv;
+  return pickAmongTop(scored, style.topChoices);
+}
+
+// Weighted pick among the best few moves (Medium's imperfect choice). Never
+// wanders into a move the threat check buried — variety shouldn't mean blundering.
+function pickAmongTop(scored, weights) {
+  const pool = [scored[0]];
+  for (let i = 1; i < Math.min(scored.length, weights.length); i++) {
+    if (scored[i].score > -500) pool.push(scored[i]);
+  }
+  let roll = Math.random();
+  for (let i = 0; i < pool.length; i++) {
+    if (roll < weights[i]) return pool[i].mv;
+    roll -= weights[i];
+  }
+  return pool[0].mv;
 }
 
 function maybeScheduleAI() {

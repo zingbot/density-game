@@ -2,6 +2,15 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.10 — 2026-07-04
+
+- Added AI difficulty levels to "Play vs computer": Easy, Medium (default), and Hard
+- **Easy** plays random sensible moves (always adjacent to the existing city) — never blocks, never hunts a win; towers only happen by accident
+- **Medium** uses the full strategic brain with two human-shaped flaws: it picks among its top 3 moves (50/30/20) instead of always the best, and its "is the opponent about to win?" check only runs 75% of turns — sneaky setups can get past it
+- **Hard** is the unchanged classic AI (the only difficulty that existed before)
+- The opponent's panel now shows the chosen difficulty (e.g. "Computer · Medium")
+- Note: Medium is the new default, which is a step down from the old button's behavior — pick Hard for the classic experience
+
 ## v0.9.1 — 2026-07-04
 
 - **New color system.** Terrain owns nature hues (river blue #005fcc, park green #4f9400); developers own artificial hues — Developer 1 amber (#ffd79a → #8a5a18), Developer 2 violet (#db8fff → #7000fa). Darker = denser, following sequential-map convention.
