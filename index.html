@@ -103,6 +103,26 @@
       text-transform: uppercase; letter-spacing: 1px;
       color: var(--text-tertiary); margin-bottom: 3px;
     }
+    /* ── Isometric 3D view ── */
+    #grid-wrap.iso { overflow: visible; padding: 30px 0 10px; }
+    #grid.iso {
+      transform: scale(0.8) rotateX(55deg) rotateZ(var(--iso-rot, 45deg));
+      transform-style: preserve-3d;
+      transition: transform 0.45s ease;
+      margin: 0 auto;
+    }
+    #grid.iso .cell { transform-style: preserve-3d; }
+    #grid.iso .cell:hover { transform: scale(1.08); }
+    .face { position: absolute; backface-visibility: hidden; }
+    .face-top {
+      inset: 0; border-radius: 2px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 500; color: rgba(0,0,0,0.35);
+    }
+    .face-s { left: 0; right: 0; bottom: 0; transform-origin: 50% 100%; filter: brightness(0.82); }
+    .face-n { left: 0; right: 0; top: 0;    transform-origin: 50% 0%;    filter: brightness(0.75); }
+    .face-e { top: 0; bottom: 0; right: 0;  transform-origin: 100% 50%;  filter: brightness(0.65); }
+    .face-w { top: 0; bottom: 0; left: 0;   transform-origin: 0% 50%;    filter: brightness(0.7); }
     .connection-badge {
       display: inline-flex; align-items: center; gap: 5px;
       padding: 3px 8px; border-radius: 12px; font-size: 11px;
@@ -254,6 +274,9 @@
       <button class="tile-btn" data-type="park" id="park-btn" onclick="selectTile('park',this)">
         <span class="tile-swatch" id="park-swatch"></span> Park <span class="tile-count" id="park-count">(3)</span>
       </button>
+      <button class="tile-btn" id="view-toggle" onclick="toggleView()" style="margin-left:auto">3D view</button>
+      <button class="tile-btn iso-rotate" onclick="rotateView(-1)" title="Rotate left" style="display:none">⟲</button>
+      <button class="tile-btn iso-rotate" onclick="rotateView(1)" title="Rotate right" style="display:none">⟳</button>
     </div>
     <div id="msg">Build density to reach tower. 3 of 4 neighbors at your level or higher to upgrade.</div>
     <div id="grid-wrap"><div id="grid"></div></div>
@@ -305,7 +328,7 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.11';
+const VERSION = 'v0.12';
 document.getElementById('version-label').textContent = VERSION;
 const GRID = 20;
 const MAX_PARKS = 3;
@@ -335,6 +358,7 @@ applyColorSystem();
 const DENSITY_NAMES = ['low-rise','mid-rise','high-rise','tower'];
 
 let board, currentPlayer, selectedTile = 'settle', gameOver, inventory;
+let viewMode = '2d'; // '2d' flat grid | 'iso' isometric blocks — rendering only, rules unaffected
 let myPlayer = 0; // 0 = local, 1 = player 1, 2 = player 2
 let roomCode = null;
 let roomRef = null;
@@ -1082,12 +1106,62 @@ function renderGrid() {
       else if (b.type === 'park') { cell.style.background = PARK_COLOR; cell.classList.add('park-cell'); cell.textContent = '♣'; }
       else if (b.type === 'settle') {
         const colors = b.player === 1 ? P1_COLORS : P2_COLORS;
-        cell.style.background = colors[b.density - 1];
-        cell.textContent = b.density;
+        const col = colors[b.density - 1];
+        cell.style.background = col;
+        if (viewMode === 'iso') buildBlock(cell, col, b.density);
+        else cell.textContent = b.density;
       }
       cell.onclick = () => handleClick(r, c);
       grid.appendChild(cell);
     }
+  }
+}
+
+function toggleView() {
+  viewMode = viewMode === '2d' ? 'iso' : '2d';
+  const iso = viewMode === 'iso';
+  document.getElementById('grid-wrap').classList.toggle('iso', iso);
+  document.getElementById('grid').classList.toggle('iso', iso);
+  document.getElementById('view-toggle').textContent = iso ? '2D view' : '3D view';
+  document.querySelectorAll('.iso-rotate').forEach(b => b.style.display = iso ? '' : 'none');
+  renderGrid();
+}
+
+// Camera rotation in 3D mode, in quarter turns. The angle accumulates (no
+// wrap-around) so the animation always takes the short way. Rooftop numbers
+// counter-rotate via --num-rot to stay readable from every angle.
+let isoRotation = 0;
+function rotateView(dir) {
+  isoRotation += dir;
+  const grid = document.getElementById('grid');
+  grid.style.setProperty('--iso-rot', (45 + isoRotation * 90) + 'deg');
+  grid.style.setProperty('--num-rot', (-isoRotation * 90) + 'deg');
+}
+
+// Builds a building's 3D block: a top face lifted by density, plus four side
+// walls standing on the cell's edges. backface-visibility culls the two walls
+// facing away from the camera, so only the lit pair ever shows.
+function buildBlock(cell, col, density) {
+  const h = density * 9; // px of height per density level
+  const top = document.createElement('div');
+  top.className = 'face face-top';
+  top.style.background = col;
+  top.style.transform = `translateZ(${h}px) rotateZ(var(--num-rot, 0deg))`;
+  top.textContent = density;
+  cell.appendChild(top);
+  const sides = [
+    ['face-s', 'rotateX(-90deg)', 'height'],
+    ['face-n', 'rotateX(90deg)',  'height'],
+    ['face-e', 'rotateY(90deg)',  'width'],
+    ['face-w', 'rotateY(-90deg)', 'width'],
+  ];
+  for (const [cls, rot, dim] of sides) {
+    const f = document.createElement('div');
+    f.className = 'face ' + cls;
+    f.style.background = col;
+    f.style[dim] = h + 'px';
+    f.style.transform = rot;
+    cell.appendChild(f);
   }
 }
 

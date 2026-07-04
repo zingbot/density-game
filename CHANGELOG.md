@@ -2,6 +2,14 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.12 — 2026-07-04
+
+- Added an isometric 3D city view with a 2D/3D toggle button in the game toolbar
+- Buildings rise with density — low-rises are slabs, towers loom; rivers and parks stay flat
+- Walls are directionally shaded (consistent "sunlight"), built with pure CSS 3D — no new dependencies
+- Rotate buttons (⟲ ⟳) in 3D mode spin the city in animated 90° steps so every part of the map is reachable; rooftop density numbers counter-rotate to stay readable
+- Purely visual: rules, AI, multiplayer, and the reasoning panel are unaffected; 2D remains the default view
+
 ## v0.11 — 2026-07-04
 
 - Added an always-on "Computer's reasoning" panel below the board in vs-computer games: after every AI move, the computer explains what it played and why
