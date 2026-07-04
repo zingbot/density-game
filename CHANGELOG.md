@@ -2,6 +2,17 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.13 — 2026-07-04
+
+- **New mechanic: the Bulldozer (prototype).** Each player gets 2 charges; spending one is your whole turn and demolishes a qualifying building. No cascade runs — densities are sticky, so demolishing never retroactively downgrades neighbors. Parks and rivers can't be bulldozed.
+- Built behind variant flags (`BULLDOZER` constant) for playtesting: `target` ('own' buildings below tower — default — or 'opponent-lowrise'), `charges` (1–3), and `rubble` (off by default; when on, the demolished tile becomes rubble for 2 turns — unbuildable, counts as nothing for upgrade checks, then clears).
+- In-game rule text is generated from the flags, so playtest builds never show stale rules.
+- Firebase security rules updated for the new inventory field (`dozers`) and rubble tile type — **rules must be deployed before this client version is published**, or multiplayer writes are silently rejected.
+- Firebase rules now live in the repo (`database.rules.json`) with `firebase.json`/`.firebaserc`, deployable via `firebase deploy --only database`.
+- The AI does not use its bulldozers yet; it handles rubble tiles correctly. (Wiring the bulldozer into the difficulty-level brains from v0.10–0.11 is follow-up work.)
+- Fixed stale color names in the RULES.md density table (missed in v0.9.1).
+- Prototype rules to be reconciled with Adrian's full proposal before v1.0.
+
 ## v0.12 — 2026-07-04
 
 - Added an isometric 3D city view with a 2D/3D toggle button in the game toolbar

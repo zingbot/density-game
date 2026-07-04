@@ -1,0 +1,68 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "rooms": {
+      "$code": {
+        // Room codes: exactly 5 chars from the game's charset (no I, O, 0, 1)
+        ".read": "$code.matches(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{5}$/)",
+        ".write": "$code.matches(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{5}$/)",
+
+        // A room, when present, must have exactly this shape
+        ".validate": "newData.hasChildren(['players', 'state'])",
+
+        "players": {
+          "p1": { ".validate": "newData.isBoolean()" },
+          "p2": { ".validate": "newData.isBoolean()" },
+          "$other": { ".validate": false }
+        },
+
+        "state": {
+          ".validate": "newData.hasChildren(['board', 'currentPlayer', 'gameOver', 'inventory'])",
+
+          "currentPlayer": { ".validate": "newData.isNumber() && (newData.val() === 1 || newData.val() === 2)" },
+          "gameOver":      { ".validate": "newData.isBoolean()" },
+
+          // winner/winR/winC are written as null locally (Firebase drops nulls),
+          // so they only exist when a tower is built
+          "winner": { ".validate": "newData.isNumber() && (newData.val() === 1 || newData.val() === 2)" },
+          "winR":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 19" },
+          "winC":   { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 19" },
+
+          "inventory": {
+            "$player": {
+              ".validate": "$player === '1' || $player === '2'",
+              "parks":     { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3" },
+              "buildings": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              // v0.10: bulldozer charges (BULLDOZER.charges caps at 3)
+              "dozers":    { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3" },
+              "$other":    { ".validate": false }
+            }
+          },
+
+          "board": {
+            // 20x20: rows 0-19, each cell is 0 (empty) or {t, pl?, d?, n?}
+            "$row": {
+              ".validate": "$row.matches(/^(1?[0-9])$/)",
+              "$col": {
+                ".validate": "$col.matches(/^(1?[0-9])$/) && (newData.isNumber() || newData.hasChild('t'))",
+                // v0.10: 'x' = rubble (bulldozed tile, rubble variant only)
+                "t":  { ".validate": "newData.val() === 'r' || newData.val() === 'p' || newData.val() === 's' || newData.val() === 'x'" },
+                "pl": { ".validate": "newData.isNumber() && (newData.val() === 1 || newData.val() === 2)" },
+                "d":  { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 4" },
+                // rubble countdown: turns remaining before the tile clears
+                "n":  { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 3" },
+                "$other": { ".validate": false }
+              }
+            }
+          },
+
+          "$other": { ".validate": false }
+        },
+
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}

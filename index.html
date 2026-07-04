@@ -162,6 +162,8 @@
     .cell.empty { background: var(--bg-secondary); }
     .cell.river { background: var(--river-color, #005fcc); cursor: default; }
     .cell.river:hover { transform: none; }
+    .cell.rubble { background: var(--rubble-color, #4a4a4a); color: rgba(255,255,255,0.55); cursor: default; font-size: 11px; }
+    .cell.rubble:hover { transform: none; }
     .cell.park-cell { color: rgba(255,255,255,0.8); font-size: 12px; }
     .cell.upgraded { animation: pulse 0.35s ease; }
     .cell.disabled { cursor: not-allowed; opacity: 0.85; }
@@ -274,6 +276,9 @@
       <button class="tile-btn" data-type="park" id="park-btn" onclick="selectTile('park',this)">
         <span class="tile-swatch" id="park-swatch"></span> Park <span class="tile-count" id="park-count">(3)</span>
       </button>
+      <button class="tile-btn" data-type="bulldoze" id="dozer-btn" onclick="selectTile('bulldoze',this)">
+        <span class="tile-swatch" id="dozer-swatch"></span> Bulldoze <span class="tile-count" id="dozer-count">(2)</span>
+      </button>
       <button class="tile-btn" id="view-toggle" onclick="toggleView()" style="margin-left:auto">3D view</button>
       <button class="tile-btn iso-rotate" onclick="rotateView(-1)" title="Rotate left" style="display:none">⟲</button>
       <button class="tile-btn iso-rotate" onclick="rotateView(1)" title="Rotate right" style="display:none">⟳</button>
@@ -293,6 +298,7 @@
     <div class="rule-box">
       Upgrade rule: 3 of 4 neighbors must be occupied at your density level or higher.
       Rivers are fixed terrain and count only as low-rise neighbors. Parks give +1 density to ALL adjacent buildings — yours and your opponent's — when placed (3 per developer, count as any level).
+      <span id="bulldozer-rule"></span>
       First tower wins.
     </div>
   </div>
@@ -328,10 +334,19 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.12';
+const VERSION = 'v0.13';
 document.getElementById('version-label').textContent = VERSION;
 const GRID = 20;
 const MAX_PARKS = 3;
+// ─── BULLDOZER VARIANT FLAGS (v0.13 prototype — reconcile with Adrian before ship) ───
+// Bulldozing spends your whole turn and one charge. Densities are sticky:
+// removing a building never retroactively downgrades its neighbors.
+const BULLDOZER = {
+  charges: 2,            // per player: 1–3 (Firebase rules cap at 3)
+  target: 'own',         // 'own' = your own buildings below tower | 'opponent-lowrise' = opponent density-1 only
+  rubble: false,         // true = demolished tile becomes rubble instead of empty
+  rubbleTurns: 2,        // completed turns the rubble blocks the tile before clearing
+};
 // ─── COLOR SYSTEM (single source of truth — v0.9.1) ───
 // Principles: terrain owns nature hues (blue river, green park);
 // developers own artificial hues (P1 amber, P2 violet); darker = denser.
@@ -339,13 +354,16 @@ const P1_COLORS   = ['#ffd79a','#ef9f27','#ba7517','#8a5a18'];
 const P2_COLORS   = ['#db8fff','#cb5cff','#872af8','#7000fa'];
 const RIVER_COLOR = '#005fcc';
 const PARK_COLOR  = '#4f9400';
+const RUBBLE_COLOR = '#4a4a4a'; // neutral gray — rubble belongs to no one
 
 // Push colors into the DOM (CSS var + legend/button swatches) so hexes
 // never live in two places again — same pattern as the VERSION constant.
 function applyColorSystem() {
   document.documentElement.style.setProperty('--river-color', RIVER_COLOR);
+  document.documentElement.style.setProperty('--rubble-color', RUBBLE_COLOR);
   document.getElementById('settle-swatch').style.background = P1_COLORS[0];
   document.getElementById('park-swatch').style.background = PARK_COLOR;
+  document.getElementById('dozer-swatch').style.background = RUBBLE_COLOR;
   const legColors = [P1_COLORS[0], P1_COLORS[1], P1_COLORS[2], P1_COLORS[3], RIVER_COLOR, PARK_COLOR];
   document.querySelectorAll('#legend .leg-sw').forEach((el, i) => { el.style.background = legColors[i]; });
   const p1p = document.getElementById('p1-panel'), p2p = document.getElementById('p2-panel');
@@ -356,6 +374,19 @@ function applyColorSystem() {
 }
 applyColorSystem();
 const DENSITY_NAMES = ['low-rise','mid-rise','high-rise','tower'];
+
+// Rule text follows the variant flags so playtest builds never show stale rules.
+function describeBulldozer() {
+  const tgt = BULLDOZER.target === 'own'
+    ? 'one of your own buildings (below tower)'
+    : 'an opponent low-rise (density 1)';
+  const after = BULLDOZER.rubble
+    ? `The tile becomes rubble for ${BULLDOZER.rubbleTurns} turns, then clears.`
+    : 'The tile becomes empty and buildable again.';
+  return `Bulldozer (${BULLDOZER.charges} per developer): spend your turn to demolish ${tgt}. ${after}`;
+}
+document.getElementById('bulldozer-rule').textContent = describeBulldozer();
+document.getElementById('dozer-count').textContent = `(${BULLDOZER.charges})`;
 
 let board, currentPlayer, selectedTile = 'settle', gameOver, inventory;
 let viewMode = '2d'; // '2d' flat grid | 'iso' isometric blocks — rendering only, rules unaffected
@@ -553,7 +584,7 @@ function buildInitialState() {
     board: serializeBoard(b),
     currentPlayer: 1,
     gameOver: false,
-    inventory: { 1: { parks: MAX_PARKS, buildings: 0 }, 2: { parks: MAX_PARKS, buildings: 0 } },
+    inventory: { 1: { parks: MAX_PARKS, buildings: 0, dozers: BULLDOZER.charges }, 2: { parks: MAX_PARKS, buildings: 0, dozers: BULLDOZER.charges } },
     winner: null,
     winR: null, winC: null
   };
@@ -581,13 +612,14 @@ function loadState(state) {
           if (cell.t === 'r') board[r][c] = { type: 'river' };
           else if (cell.t === 'p') board[r][c] = { type: 'park', player: cell.pl };
           else if (cell.t === 's') board[r][c] = { type: 'settle', player: cell.pl, density: cell.d };
+          else if (cell.t === 'x') board[r][c] = { type: 'rubble', n: cell.n || 1 };
         }
       }
     }
   }
   currentPlayer = state.currentPlayer || 1;
   gameOver = state.gameOver || false;
-  inventory = state.inventory || { 1: { parks: MAX_PARKS, buildings: 0 }, 2: { parks: MAX_PARKS, buildings: 0 } };
+  inventory = state.inventory || { 1: { parks: MAX_PARKS, buildings: 0, dozers: BULLDOZER.charges }, 2: { parks: MAX_PARKS, buildings: 0, dozers: BULLDOZER.charges } };
   if (state.gameOver && state.winner) {
     showWinBanner(state.winner, state.winR, state.winC);
   } else {
@@ -605,6 +637,7 @@ function currentStateSnapshot() {
       else if (cell.type === 'river') row.push({ t: 'r' });
       else if (cell.type === 'park') row.push({ t: 'p', pl: cell.player });
       else if (cell.type === 'settle') row.push({ t: 's', pl: cell.player, d: cell.density });
+      else if (cell.type === 'rubble') row.push({ t: 'x', n: cell.n });
       else row.push(0);
     }
     b.push(row);
@@ -659,7 +692,7 @@ function initGame() {
   currentPlayer = 1;
   selectedTile = 'settle';
   gameOver = false;
-  inventory = { 1: { parks: MAX_PARKS, buildings: 0 }, 2: { parks: MAX_PARKS, buildings: 0 } };
+  inventory = { 1: { parks: MAX_PARKS, buildings: 0, dozers: BULLDOZER.charges }, 2: { parks: MAX_PARKS, buildings: 0, dozers: BULLDOZER.charges } };
   document.getElementById('winner-banner').style.display = 'none';
   setMsg('Build density to reach tower. 3 of 4 neighbors at your level or higher to upgrade.');
   renderGrid();
@@ -679,10 +712,15 @@ function getEffectiveDensity(r, c, b = board) {
   if (!cell) return -1;
   if (cell.type === 'park') return -1;  // wild: parks are scarce (3 per player)
   if (cell.type === 'river') return 1;  // v0.9: rivers count as low-rise only
+  if (cell.type === 'rubble') return 0; // dead land: never qualifies for upgrades
   return cell.density;
 }
 
-function isOccupiedForSurround(r, c, b = board) { return b[r][c] !== null; }
+// Rubble is not "occupied": it neither supports upgrades nor counts as a neighbor.
+function isOccupiedForSurround(r, c, b = board) {
+  const cell = b[r][c];
+  return cell !== null && cell.type !== 'rubble';
+}
 
 function canUpgrade(r, c, b = board) {
   const cell = b[r][c];
@@ -761,6 +799,44 @@ function applyPlacement(b, inv, player, r, c, type) {
   return res;
 }
 
+// ─── BULLDOZER (v0.13) ───
+function canBulldoze(player, r, c, b = board, inv = inventory) {
+  if ((inv[player].dozers ?? 0) <= 0) return false;
+  const cell = b[r][c];
+  if (!cell || cell.type !== 'settle') return false;
+  if (BULLDOZER.target === 'own') return cell.player === player && cell.density < 4;
+  return cell.player !== player && cell.density === 1; // 'opponent-lowrise'
+}
+
+// Demolish is its own move type: nothing is placed, so no park boosts and no
+// cascade. Densities are sticky — removing support never un-upgrades neighbors.
+function applyBulldoze(b, inv, player, r, c) {
+  const owner = b[r][c].player;
+  b[r][c] = BULLDOZER.rubble ? { type: 'rubble', n: BULLDOZER.rubbleTurns } : null;
+  inv[player].dozers--;
+  inv[owner].buildings--;
+}
+
+// Rubble clears after BULLDOZER.rubbleTurns completed turns. Runs at the end of
+// every move; the tile bulldozed this very move (if any) skips its first tick.
+function tickRubble(b = board, exceptR = -1, exceptC = -1) {
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const cell = b[r][c];
+      if (cell && cell.type === 'rubble' && !(r === exceptR && c === exceptC)) {
+        if (--cell.n <= 0) b[r][c] = null;
+      }
+    }
+  }
+}
+
+function bulldozeHint() {
+  if ((inventory[currentPlayer].dozers ?? 0) <= 0) return 'No bulldozers left!';
+  return BULLDOZER.target === 'own'
+    ? 'Bulldoze one of your own buildings (below tower).'
+    : 'Bulldoze an opponent low-rise (density 1).';
+}
+
 // `forcedType` is supplied by the computer; for human clicks it's undefined.
 function handleClick(r, c, forcedType) {
   if (gameOver) return;
@@ -769,12 +845,31 @@ function handleClick(r, c, forcedType) {
     if (vsAI && currentPlayer === aiPlayer) return; // computer's turn — ignore clicks
     if (isOnline && myPlayer !== currentPlayer) { setMsg("Wait for your opponent's move."); return; }
   }
-  if (board[r][c]) {
-    if (!isAIMove) setMsg(board[r][c].type === 'river' ? "Can't build on a river." : 'That space is taken.');
+  const type = isAIMove ? forcedType : selectedTile;
+
+  if (type === 'bulldoze') {
+    if (!canBulldoze(currentPlayer, r, c)) { if (!isAIMove) setMsg(bulldozeHint()); return; }
+    applyBulldoze(board, inventory, currentPlayer, r, c);
+    tickRubble(board, BULLDOZER.rubble ? r : -1, BULLDOZER.rubble ? c : -1);
+    setMsg(`Demolished (${r+1},${c+1}).` + (BULLDOZER.rubble ? ` Rubble clears in ${BULLDOZER.rubbleTurns} turns.` : ''));
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    updateUI();
+    pushState({});
+    renderGrid();
+    maybeScheduleAI();
     return;
   }
 
-  const type = isAIMove ? forcedType : selectedTile;
+  if (board[r][c]) {
+    if (!isAIMove) {
+      const t = board[r][c].type;
+      setMsg(t === 'river' ? "Can't build on a river."
+           : t === 'rubble' ? `Rubble — clears in ${board[r][c].n} turn${board[r][c].n === 1 ? '' : 's'}.`
+           : 'That space is taken.');
+    }
+    return;
+  }
+
   const inv = inventory[currentPlayer];
   if (type === 'park' && inv.parks <= 0) { if (!isAIMove) setMsg('No parks left!'); return; }
 
@@ -794,6 +889,7 @@ function handleClick(r, c, forcedType) {
       }).join(', ');
       setMsg('Upgraded: ' + names);
     } else { setMsg(''); }
+    tickRubble(board);
     currentPlayer = currentPlayer === 1 ? 2 : 1;
   }
 
@@ -902,7 +998,7 @@ function qualifyingNeighborCount(r, c, b) {
   const cell = b[r][c];
   let q = 0;
   for (const [nr, nc] of getNeighbors(r, c)) {
-    if (b[nr][nc] === null) continue;
+    if (!isOccupiedForSurround(nr, nc, b)) continue;
     const nd = getEffectiveDensity(nr, nc, b);
     if (nd === -1 || nd >= cell.density) q++;
   }
@@ -1103,6 +1199,7 @@ function renderGrid() {
       const b = board[r][c];
       if (!b) { cell.classList.add('empty'); }
       else if (b.type === 'river') { cell.classList.add('river'); }
+      else if (b.type === 'rubble') { cell.classList.add('rubble'); cell.textContent = '✕'; }
       else if (b.type === 'park') { cell.style.background = PARK_COLOR; cell.classList.add('park-cell'); cell.textContent = '♣'; }
       else if (b.type === 'settle') {
         const colors = b.player === 1 ? P1_COLORS : P2_COLORS;
@@ -1177,17 +1274,21 @@ function updateUI() {
   const controlPlayer = isOnline ? myPlayer : (vsAI ? humanPlayer : currentPlayer);
   const notControlsTurn = (isOnline && myPlayer !== currentPlayer) || (vsAI && currentPlayer !== humanPlayer);
   document.getElementById('settle-swatch').style.background = controlPlayer === 1 ? P1_COLORS[0] : P2_COLORS[0];
-  const inv = inventory[controlPlayer] || { parks: 0, buildings: 0 };
+  const inv = inventory[controlPlayer] || { parks: 0, buildings: 0, dozers: 0 };
   document.getElementById('park-count').textContent = `(${inv.parks})`;
   document.getElementById('park-btn').disabled = inv.parks <= 0 || notControlsTurn;
   if (selectedTile === 'park' && inv.parks <= 0) selectTile('settle', document.querySelector('.tile-btn[data-type="settle"]'));
+  const dozers = inv.dozers ?? 0;
+  document.getElementById('dozer-count').textContent = `(${dozers})`;
+  document.getElementById('dozer-btn').disabled = dozers <= 0 || notControlsTurn;
+  if (selectedTile === 'bulldoze' && dozers <= 0) selectTile('settle', document.querySelector('.tile-btn[data-type="settle"]'));
   updatePlayerInfo();
 }
 
 function updatePlayerInfo() {
   for (const p of [1, 2]) {
-    const inv = inventory[p] || { parks: 0, buildings: 0 };
-    document.getElementById(`p${p}-info`).textContent = `${inv.buildings} buildings · ${inv.parks} parks`;
+    const inv = inventory[p] || { parks: 0, buildings: 0, dozers: 0 };
+    document.getElementById(`p${p}-info`).textContent = `${inv.buildings} buildings · ${inv.parks} parks · ${inv.dozers ?? 0} dozers`;
   }
 }
 
@@ -1195,6 +1296,7 @@ function selectTile(type, btn) {
   selectedTile = type;
   document.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
+  if (type === 'bulldoze') setMsg(bulldozeHint());
 }
 
 function setMsg(text) { document.getElementById('msg').textContent = text; }

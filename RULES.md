@@ -1,4 +1,4 @@
-# Density — Game Rules (v0.9)
+# Density — Game Rules (v0.13)
 
 ## Overview
 
@@ -8,8 +8,8 @@ Density is a two-player competitive city-building game on a 20×20 grid. Two dev
 
 - The board is a 20×20 grid.
 - Two rivers are procedurally generated across the board at game start, creating unique terrain each game.
-- Each player starts with **3 parks** in their inventory.
-- Player 1 (warm colors) goes first.
+- Each player starts with **3 parks** and **2 bulldozers** in their inventory.
+- Player 1 (amber) goes first.
 
 ## Tile Types
 
@@ -31,21 +31,47 @@ Density is a two-player competitive city-building game on a 20×20 grid. Two dev
 - Cannot be built on.
 - Counts as occupied for surround checks, but only as a **low-rise (level 1)** neighbor (changed in v0.9; was wild before). Rivers help buildings reach mid-rise but contribute nothing toward high-rise or tower upgrades.
 
+### Rubble (v0.13, rubble variant only)
+- Created when a building is bulldozed with the `rubble` variant flag enabled (off by default — bulldozed tiles normally return to empty).
+- Cannot be built on while present.
+- Counts as **nothing** for upgrade checks — not occupied, satisfies no density level.
+- Clears automatically after **2 completed turns**, returning the tile to empty.
+
 ## Density Levels
 
 | Level | Name      | Player 1 Color | Player 2 Color |
 |-------|-----------|----------------|----------------|
-| 1     | Low-rise  | Yellow         | Mint           |
-| 2     | Mid-rise  | Orange         | Teal           |
-| 3     | High-rise | Red            | Blue           |
-| 4     | Tower ★   | Purple         | Indigo         |
+| 1     | Low-rise  | Pale amber     | Pale violet    |
+| 2     | Mid-rise  | Orange         | Bright violet  |
+| 3     | High-rise | Bronze         | Deep violet    |
+| 4     | Tower ★   | Dark umber     | Electric violet |
+
+Darker = denser (v0.9.1). Terrain owns the nature hues: river is blue, parks are green, rubble is neutral gray.
 
 ## Turn Structure
 
-1. Players alternate turns. One placement per turn.
-2. On your turn, place either a **Building** or a **Park** on any empty, non-river cell.
-3. After placement, the upgrade cascade resolves automatically.
+1. Players alternate turns. One action per turn.
+2. On your turn, either place a **Building** or a **Park** on any empty, non-river cell — or spend a **Bulldozer** charge to demolish a building (see below).
+3. After a placement, the upgrade cascade resolves automatically. Bulldozing triggers no cascade.
 4. Play passes to the other player.
+
+## Bulldozer (v0.13 prototype)
+
+- Each player has **2 bulldozer charges** per game.
+- Using one is your **entire turn**: choose a qualifying building and demolish it. The tile returns to empty (or becomes rubble for 2 turns, under the rubble variant).
+- **Densities are sticky:** demolishing a building never retroactively downgrades neighbors it helped upgrade.
+- Parks and rivers cannot be bulldozed.
+- The demolished building comes off its owner's building count.
+
+The bulldozer is being playtested under variant flags (the `BULLDOZER` constant in `index.html`):
+
+| Flag | Default | Options |
+|------|---------|---------|
+| `charges` | 2 | 1–3 per player |
+| `target` | `'own'` — your own buildings below tower | `'opponent-lowrise'` — opponent density-1 buildings only |
+| `rubble` | `false` — tile returns to empty | `true` — tile becomes rubble for 2 turns |
+
+These are prototype rules; final rules to be reconciled with Adrian's proposal before v1.0.
 
 ## Upgrade Rule
 
