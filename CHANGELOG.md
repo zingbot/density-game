@@ -2,6 +2,10 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.13.2 — 2026-07-04
+
+- Fixed 3D view flattening while waiting for the opponent (multiplayer) or during the computer's turn: the "not your turn" fade set cell opacity below 1, which forces browsers to flatten 3D content. Cells no longer fade in 3D mode — the turn indicator carries that signal.
+
 ## v0.13.1 — 2026-07-04
 
 - Fixed silent multiplayer breakage waiting to happen: `createRoom` sent a `created` timestamp that the v0.13 Firebase security rules reject (rooms with unexpected fields are refused). Removed the field — nothing ever read it — so the client is valid under both the old open rules and the new strict rules, whenever they're deployed.

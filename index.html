@@ -113,6 +113,10 @@
     }
     #grid.iso .cell { transform-style: preserve-3d; }
     #grid.iso .cell:hover { transform: scale(1.08); }
+    /* Opacity < 1 forces the browser to flatten 3D children, squashing the
+       blocks — so never fade cells in iso mode; the turn indicator carries
+       the "not your turn" signal instead. */
+    #grid.iso .cell.disabled { opacity: 1; }
     .face { position: absolute; backface-visibility: hidden; }
     .face-top {
       inset: 0; border-radius: 2px;
@@ -334,7 +338,7 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.13.1';
+const VERSION = 'v0.13.2';
 document.getElementById('version-label').textContent = VERSION;
 const GRID = 20;
 const MAX_PARKS = 3;
