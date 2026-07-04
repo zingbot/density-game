@@ -338,7 +338,7 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.13.2';
+const VERSION = 'v0.13.3';
 document.getElementById('version-label').textContent = VERSION;
 const GRID = 20;
 const MAX_PARKS = 3;
@@ -347,7 +347,7 @@ const MAX_PARKS = 3;
 // removing a building never retroactively downgrades its neighbors.
 const BULLDOZER = {
   charges: 2,            // per player: 1–3 (Firebase rules cap at 3)
-  target: 'own',         // 'own' = your own buildings below tower | 'opponent-lowrise' = opponent density-1 only
+  target: 'any',         // 'any' = either player's buildings below tower | 'own' = yours only | 'opponent-lowrise' = opponent density-1 only
   rubble: false,         // true = demolished tile becomes rubble instead of empty
   rubbleTurns: 2,        // completed turns the rubble blocks the tile before clearing
 };
@@ -381,7 +381,9 @@ const DENSITY_NAMES = ['low-rise','mid-rise','high-rise','tower'];
 
 // Rule text follows the variant flags so playtest builds never show stale rules.
 function describeBulldozer() {
-  const tgt = BULLDOZER.target === 'own'
+  const tgt = BULLDOZER.target === 'any'
+    ? 'any building below tower — yours or your opponent’s'
+    : BULLDOZER.target === 'own'
     ? 'one of your own buildings (below tower)'
     : 'an opponent low-rise (density 1)';
   const after = BULLDOZER.rubble
@@ -807,6 +809,7 @@ function canBulldoze(player, r, c, b = board, inv = inventory) {
   if ((inv[player].dozers ?? 0) <= 0) return false;
   const cell = b[r][c];
   if (!cell || cell.type !== 'settle') return false;
+  if (BULLDOZER.target === 'any') return cell.density < 4;
   if (BULLDOZER.target === 'own') return cell.player === player && cell.density < 4;
   return cell.player !== player && cell.density === 1; // 'opponent-lowrise'
 }
@@ -835,7 +838,9 @@ function tickRubble(b = board, exceptR = -1, exceptC = -1) {
 
 function bulldozeHint() {
   if ((inventory[currentPlayer].dozers ?? 0) <= 0) return 'No bulldozers left!';
-  return BULLDOZER.target === 'own'
+  return BULLDOZER.target === 'any'
+    ? 'Bulldoze any building below tower.'
+    : BULLDOZER.target === 'own'
     ? 'Bulldoze one of your own buildings (below tower).'
     : 'Bulldoze an opponent low-rise (density 1).';
 }

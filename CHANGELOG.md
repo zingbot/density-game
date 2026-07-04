@@ -2,9 +2,15 @@
 
 All notable changes to the Density game are documented here.
 
-## v0.13.2 — 2026-07-04
+## v0.13.3 — 2026-07-04
 
 - Fixed 3D view flattening while waiting for the opponent (multiplayer) or during the computer's turn: the "not your turn" fade set cell opacity below 1, which forces browsers to flatten 3D content. Cells no longer fade in 3D mode — the turn indicator carries that signal.
+- (This fix was authored as v0.13.2 but collided with Jeff's simultaneous v0.13.2 below; renumbered in the merge.)
+
+## v0.13.2 — 2026-07-04
+
+- **Rule change:** the bulldozer can now demolish **any building below tower — yours or your opponent's** (new `'any'` target mode, now the default; was own-buildings-only). Decided by Jeff after playtest discussion.
+- The `'own'` and `'opponent-lowrise'` modes remain available as variant flags.
 
 ## v0.13.1 — 2026-07-04
 
