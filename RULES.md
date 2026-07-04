@@ -58,7 +58,7 @@ Darker = denser (v0.9.1). Terrain owns the nature hues: river is blue, parks are
 ## Bulldozer (v0.13 prototype)
 
 - Each player has **2 bulldozer charges** per game.
-- Using one is your **entire turn**: choose a qualifying building and demolish it. The tile returns to empty (or becomes rubble for 2 turns, under the rubble variant).
+- Using one is your **entire turn**: demolish **any building below tower — yours or your opponent's** (changed in v0.13.2; was own-buildings-only). The tile returns to empty (or becomes rubble for 2 turns, under the rubble variant).
 - **Densities are sticky:** demolishing a building never retroactively downgrades neighbors it helped upgrade.
 - Parks and rivers cannot be bulldozed.
 - The demolished building comes off its owner's building count.
@@ -68,7 +68,7 @@ The bulldozer is being playtested under variant flags (the `BULLDOZER` constant 
 | Flag | Default | Options |
 |------|---------|---------|
 | `charges` | 2 | 1–3 per player |
-| `target` | `'own'` — your own buildings below tower | `'opponent-lowrise'` — opponent density-1 buildings only |
+| `target` | `'any'` — either player's buildings below tower | `'own'` — yours only; `'opponent-lowrise'` — opponent density-1 buildings only |
 | `rubble` | `false` — tile returns to empty | `true` — tile becomes rubble for 2 turns |
 
 These are prototype rules; final rules to be reconciled with Adrian's proposal before v1.0.

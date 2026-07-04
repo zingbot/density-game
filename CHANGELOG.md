@@ -2,6 +2,11 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.13.2 — 2026-07-04
+
+- **Rule change:** the bulldozer can now demolish **any building below tower — yours or your opponent's** (new `'any'` target mode, now the default; was own-buildings-only). Decided by Jeff after playtest discussion.
+- The `'own'` and `'opponent-lowrise'` modes remain available as variant flags.
+
 ## v0.13.1 — 2026-07-04
 
 - Fixed silent multiplayer breakage waiting to happen: `createRoom` sent a `created` timestamp that the v0.13 Firebase security rules reject (rooms with unexpected fields are refused). Removed the field — nothing ever read it — so the client is valid under both the old open rules and the new strict rules, whenever they're deployed.
