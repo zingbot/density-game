@@ -183,6 +183,12 @@
     #turn-indicator { font-size: 12px; color: var(--text-secondary); text-align: center; }
     .rule-box { font-size: 11px; color: var(--text-tertiary); margin-top: 8px; line-height: 1.55; }
     #version-label { font-size: 10px; color: var(--text-tertiary); text-align: right; margin-top: 12px; }
+    #stale-banner {
+      display: none; padding: 8px 12px; margin-bottom: 10px;
+      border-radius: var(--radius-md); border: 1.5px solid var(--accent);
+      background: var(--bg-secondary); color: var(--text-primary);
+      font-size: 12px; text-align: center;
+    }
     #room-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
     #room-header .room-info { font-size: 12px; color: var(--text-tertiary); }
     #room-header .room-info strong { color: var(--text-secondary); letter-spacing: 1px; }
@@ -192,6 +198,7 @@
 <div id="game-root">
   <h1>Density</h1>
   <p class="subtitle">Two developers battle to build the first tower.</p>
+  <div id="stale-banner"></div>
 
   <!-- LOBBY -->
   <div id="lobby">
@@ -338,8 +345,31 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.13.3';
+const VERSION = 'v0.13.4';
 document.getElementById('version-label').textContent = VERSION;
+
+// Stale-build detector. A browser tab keeps running whatever version it
+// loaded, so two players can silently be on different builds ("works for me,
+// flattens for you"). Re-fetch this page from the server (bypassing cache),
+// read its VERSION, and show a refresh banner if the server has moved on.
+// Fails silently when offline or when opened as a local file.
+function checkForNewerVersion() {
+  fetch(location.href.split('#')[0].split('?')[0], { cache: 'no-store' })
+    .then(r => r.ok ? r.text() : '')
+    .then(html => {
+      const m = html.match(/const VERSION = '([^']+)'/);
+      if (m && m[1] !== VERSION) {
+        const el = document.getElementById('stale-banner');
+        el.textContent = `Update available: you're playing ${VERSION}, but ${m[1]} is out. ` +
+          `Finish or leave this game, then hard-refresh (Ctrl+Shift+R) to update.`;
+        el.style.display = 'block';
+      }
+    })
+    .catch(() => {});
+}
+checkForNewerVersion();
+setInterval(checkForNewerVersion, 5 * 60 * 1000); // long-lived tabs re-check every 5 minutes
+
 const GRID = 20;
 const MAX_PARKS = 3;
 // ─── BULLDOZER VARIANT FLAGS (v0.13 prototype — reconcile with Adrian before ship) ───

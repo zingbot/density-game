@@ -2,6 +2,10 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.13.4 — 2026-07-04
+
+- Added a stale-build detector: the game periodically re-checks the server for a newer published version and shows a "hard-refresh to update" banner when the open tab has fallen behind. Motivated by two same-day incidents of players unknowingly running different builds (the 3D-flatten bug persisting in an old tab, and the earlier "deployment issue" confusion). Checks on load and every 5 minutes; silently does nothing when offline or opened from a local file.
+
 ## v0.13.3 — 2026-07-04
 
 - Fixed 3D view flattening while waiting for the opponent (multiplayer) or during the computer's turn: the "not your turn" fade set cell opacity below 1, which forces browsers to flatten 3D content. Cells no longer fade in 3D mode — the turn indicator carries that signal.
