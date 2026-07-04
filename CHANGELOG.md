@@ -2,6 +2,11 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.13.4 — 2026-07-04
+
+- Fixed first click being ignored on ~half the board in 3D view: with `preserve-3d`, the grid's plane and its flat cells z-fight during pointer ray-casting, so the grid itself often won and swallowed the click (diagnosed from a screen recording — "click twice to place"). Cells now sit an epsilon above the plane (`translateZ(0.5px)`) and the grid ignores pointer events.
+- Building faces no longer intercept clicks (`pointer-events: none`) — a tall building's overhang previously stole clicks aimed at the cell behind it.
+
 ## v0.13.3 — 2026-07-04
 
 - Fixed 3D view flattening while waiting for the opponent (multiplayer) or during the computer's turn: the "not your turn" fade set cell opacity below 1, which forces browsers to flatten 3D content. Cells no longer fade in 3D mode — the turn indicator carries that signal.

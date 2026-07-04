@@ -111,13 +111,18 @@
       transition: transform 0.45s ease;
       margin: 0 auto;
     }
-    #grid.iso .cell { transform-style: preserve-3d; }
-    #grid.iso .cell:hover { transform: scale(1.08); }
+    /* Hit-testing fix (v0.13.4): with preserve-3d, the grid's own plane and its
+       flat cells z-fight during pointer ray-casting — at ~half the board positions
+       the grid won and swallowed the first click. Lift cells off the plane by an
+       epsilon and let clicks pass through the grid itself. */
+    #grid.iso { pointer-events: none; }
+    #grid.iso .cell { transform-style: preserve-3d; pointer-events: auto; transform: translateZ(0.5px); }
+    #grid.iso .cell:hover { transform: translateZ(0.5px) scale(1.08); }
     /* Opacity < 1 forces the browser to flatten 3D children, squashing the
        blocks — so never fade cells in iso mode; the turn indicator carries
        the "not your turn" signal instead. */
     #grid.iso .cell.disabled { opacity: 1; }
-    .face { position: absolute; backface-visibility: hidden; }
+    .face { position: absolute; backface-visibility: hidden; pointer-events: none; }
     .face-top {
       inset: 0; border-radius: 2px;
       display: flex; align-items: center; justify-content: center;
@@ -338,7 +343,7 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.13.3';
+const VERSION = 'v0.13.4';
 document.getElementById('version-label').textContent = VERSION;
 const GRID = 20;
 const MAX_PARKS = 3;
