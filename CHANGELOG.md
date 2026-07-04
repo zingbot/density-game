@@ -2,6 +2,13 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.11 — 2026-07-04
+
+- Added an always-on "Computer's reasoning" panel below the board in vs-computer games: after every AI move, the computer explains what it played and why
+- Explanations are built from the AI's actual decision data recorded during the turn (options weighed, moves discarded for gifting a tower, threat check results, whether it picked its #1 choice) — never invented after the fact
+- The panel also reveals difficulty behavior honestly: Medium admits when it skipped its threat check or played its #2/#3 choice; Easy admits it has no plan
+- Special cases covered: winning moves, desperation moves (every option loses), error fallback, and passing
+
 ## v0.10 — 2026-07-04
 
 - Added AI difficulty levels to "Play vs computer": Easy, Medium (default), and Hard
