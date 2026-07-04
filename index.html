@@ -334,7 +334,7 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.13';
+const VERSION = 'v0.13.1';
 document.getElementById('version-label').textContent = VERSION;
 const GRID = 20;
 const MAX_PARKS = 3;
@@ -438,8 +438,7 @@ function createRoom() {
   roomRef = db.ref('rooms/' + roomCode);
   roomRef.set({
     state: initialState,
-    players: { p1: true, p2: false },
-    created: Date.now()
+    players: { p1: true, p2: false }
   });
 
   myPlayer = 1;

@@ -2,6 +2,10 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.13.1 — 2026-07-04
+
+- Fixed silent multiplayer breakage waiting to happen: `createRoom` sent a `created` timestamp that the v0.13 Firebase security rules reject (rooms with unexpected fields are refused). Removed the field — nothing ever read it — so the client is valid under both the old open rules and the new strict rules, whenever they're deployed.
+
 ## v0.13 — 2026-07-04
 
 - **New mechanic: the Bulldozer (prototype).** Each player gets 2 charges; spending one is your whole turn and demolishes a qualifying building. No cascade runs — densities are sticky, so demolishing never retroactively downgrades neighbors. Parks and rivers can't be bulldozed.
