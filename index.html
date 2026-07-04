@@ -120,7 +120,7 @@
     }
     .cell:hover { transform: scale(1.12); z-index: 10; }
     .cell.empty { background: var(--bg-secondary); }
-    .cell.river { background: #185FA5; cursor: default; }
+    .cell.river { background: var(--river-color, #005fcc); cursor: default; }
     .cell.river:hover { transform: none; }
     .cell.park-cell { color: rgba(255,255,255,0.8); font-size: 12px; }
     .cell.upgraded { animation: pulse 0.35s ease; }
@@ -204,16 +204,16 @@
     </div>
     <div id="winner-banner"></div>
     <div id="status-bar">
-      <div class="player-panel active" id="p1-panel" style="--accent:#EF9F27">
-        <div class="player-dot" style="background:#EF9F27"></div>
+      <div class="player-panel active" id="p1-panel">
+        <div class="player-dot"></div>
         <div>
           <div class="player-name">Developer 1</div>
           <div class="player-info" id="p1-info">0 buildings · 3 parks</div>
         </div>
       </div>
       <div id="turn-indicator">Developer 1's turn</div>
-      <div class="player-panel" id="p2-panel" style="--accent:#1D9E75">
-        <div class="player-dot" style="background:#1D9E75"></div>
+      <div class="player-panel" id="p2-panel">
+        <div class="player-dot"></div>
         <div>
           <div class="player-name">Developer 2</div>
           <div class="player-info" id="p2-info">0 buildings · 3 parks</div>
@@ -223,22 +223,22 @@
     <div id="controls">
       <span style="font-size:11px;color:var(--text-secondary);margin-right:2px">Build:</span>
       <button class="tile-btn selected" data-type="settle" onclick="selectTile('settle',this)">
-        <span class="tile-swatch" id="settle-swatch" style="background:#FAC775"></span> Building
+        <span class="tile-swatch" id="settle-swatch"></span> Building
       </button>
       <button class="tile-btn" data-type="park" id="park-btn" onclick="selectTile('park',this)">
-        <span class="tile-swatch" style="background:#639922"></span> Park <span class="tile-count" id="park-count">(3)</span>
+        <span class="tile-swatch" id="park-swatch"></span> Park <span class="tile-count" id="park-count">(3)</span>
       </button>
     </div>
     <div id="msg">Build density to reach tower. 3 of 4 neighbors at your level or higher to upgrade.</div>
     <div id="grid-wrap"><div id="grid"></div></div>
     <div id="legend">
-      <div class="leg-item"><div class="leg-sw" style="background:#FAC775"></div>Low-rise</div>
-      <div class="leg-item"><div class="leg-sw" style="background:#EF9F27"></div>Mid-rise</div>
-      <div class="leg-item"><div class="leg-sw" style="background:#E24B4A"></div>High-rise</div>
-      <div class="leg-item"><div class="leg-sw" style="background:#7F77DD"></div>Tower ★</div>
+      <div class="leg-item"><div class="leg-sw"></div>Low-rise</div>
+      <div class="leg-item"><div class="leg-sw"></div>Mid-rise</div>
+      <div class="leg-item"><div class="leg-sw"></div>High-rise</div>
+      <div class="leg-item"><div class="leg-sw"></div>Tower ★</div>
       <div class="leg-div"></div>
-      <div class="leg-item"><div class="leg-sw" style="background:#185FA5"></div>River</div>
-      <div class="leg-item"><div class="leg-sw" style="background:#639922"></div>Park</div>
+      <div class="leg-item"><div class="leg-sw"></div>River</div>
+      <div class="leg-item"><div class="leg-sw"></div>Park</div>
     </div>
     <div class="rule-box">
       Upgrade rule: 3 of 4 neighbors must be occupied at your density level or higher.
@@ -278,12 +278,33 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.9';
+const VERSION = 'v0.9.1';
 document.getElementById('version-label').textContent = VERSION;
 const GRID = 20;
 const MAX_PARKS = 3;
-const P1_COLORS = ['#FAC775','#EF9F27','#E24B4A','#7F77DD'];
-const P2_COLORS = ['#9FE1CB','#1D9E75','#378ADD','#534AB7'];
+// ─── COLOR SYSTEM (single source of truth — v0.9.1) ───
+// Principles: terrain owns nature hues (blue river, green park);
+// developers own artificial hues (P1 amber, P2 violet); darker = denser.
+const P1_COLORS   = ['#ffd79a','#ef9f27','#ba7517','#8a5a18'];
+const P2_COLORS   = ['#db8fff','#cb5cff','#872af8','#7000fa'];
+const RIVER_COLOR = '#005fcc';
+const PARK_COLOR  = '#4f9400';
+
+// Push colors into the DOM (CSS var + legend/button swatches) so hexes
+// never live in two places again — same pattern as the VERSION constant.
+function applyColorSystem() {
+  document.documentElement.style.setProperty('--river-color', RIVER_COLOR);
+  document.getElementById('settle-swatch').style.background = P1_COLORS[0];
+  document.getElementById('park-swatch').style.background = PARK_COLOR;
+  const legColors = [P1_COLORS[0], P1_COLORS[1], P1_COLORS[2], P1_COLORS[3], RIVER_COLOR, PARK_COLOR];
+  document.querySelectorAll('#legend .leg-sw').forEach((el, i) => { el.style.background = legColors[i]; });
+  const p1p = document.getElementById('p1-panel'), p2p = document.getElementById('p2-panel');
+  p1p.style.setProperty('--accent', P1_COLORS[1]);
+  p2p.style.setProperty('--accent', P2_COLORS[1]);
+  p1p.querySelector('.player-dot').style.background = P1_COLORS[1];
+  p2p.querySelector('.player-dot').style.background = P2_COLORS[1];
+}
+applyColorSystem();
 const DENSITY_NAMES = ['low-rise','mid-rise','high-rise','tower'];
 
 let board, currentPlayer, selectedTile = 'settle', gameOver, inventory;
@@ -892,7 +913,7 @@ function endGame(winner, r, c) {
 
 function showWinBanner(winner, r, c) {
   const banner = document.getElementById('winner-banner');
-  const color = winner === 1 ? '#7F77DD' : '#534AB7';
+  const color = winner === 1 ? P1_COLORS[3] : P2_COLORS[3];
   const isMe = (isOnline && winner === myPlayer) || (vsAI && winner === humanPlayer);
   const label = (isOnline || vsAI) ? (isMe ? 'You win!' : 'You lose!') : `Developer ${winner} wins!`;
   banner.style.display = 'block';
@@ -925,7 +946,7 @@ function renderGrid() {
       const b = board[r][c];
       if (!b) { cell.classList.add('empty'); }
       else if (b.type === 'river') { cell.classList.add('river'); }
-      else if (b.type === 'park') { cell.style.background = '#639922'; cell.classList.add('park-cell'); cell.textContent = '♣'; }
+      else if (b.type === 'park') { cell.style.background = PARK_COLOR; cell.classList.add('park-cell'); cell.textContent = '♣'; }
       else if (b.type === 'settle') {
         const colors = b.player === 1 ? P1_COLORS : P2_COLORS;
         cell.style.background = colors[b.density - 1];
@@ -948,7 +969,7 @@ function updateUI() {
   // Whose tools the controls represent: my seat online, the human vs computer, else the active player.
   const controlPlayer = isOnline ? myPlayer : (vsAI ? humanPlayer : currentPlayer);
   const notControlsTurn = (isOnline && myPlayer !== currentPlayer) || (vsAI && currentPlayer !== humanPlayer);
-  document.getElementById('settle-swatch').style.background = controlPlayer === 1 ? '#FAC775' : '#9FE1CB';
+  document.getElementById('settle-swatch').style.background = controlPlayer === 1 ? P1_COLORS[0] : P2_COLORS[0];
   const inv = inventory[controlPlayer] || { parks: 0, buildings: 0 };
   document.getElementById('park-count').textContent = `(${inv.parks})`;
   document.getElementById('park-btn').disabled = inv.parks <= 0 || notControlsTurn;

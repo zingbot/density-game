@@ -10,16 +10,18 @@ A two-player competitive city-building grid game. Two developers battle to build
 4. Upgrades cascade — one placement can trigger a chain reaction.
 5. Each player has **3 parks** that give +1 density to your own adjacent buildings when placed.
 6. **Rivers** are randomly generated terrain that can't be built on but count as wild for density checks.
-7. First player to upgrade a building to **Tower (purple, density 4)** wins.
+7. First player to upgrade a building to **Tower (density 4)** wins.
 
 ## Density Levels
 
 | Level | Name | Player 1 | Player 2 |
 |-------|------|----------|----------|
-| 1 | Low-rise | 🟡 Yellow | 🟢 Mint |
-| 2 | Mid-rise | 🟠 Orange | 🟩 Teal |
-| 3 | High-rise | 🔴 Red | 🔵 Blue |
-| 4 | Tower ★ | 🟣 Purple | 🟣 Indigo |
+| 1 | Low-rise | 🟡 Pale amber | 🩷 Pale violet |
+| 2 | Mid-rise | 🟠 Orange | 🟣 Bright violet |
+| 3 | High-rise | 🟤 Bronze | 🟣 Deep violet |
+| 4 | Tower ★ | 🟤 Dark umber | 🟣 Electric violet |
+
+Terrain owns the nature hues — river is blue, parks are green — so ownership colors never collide with the map.
 
 ## Project
 

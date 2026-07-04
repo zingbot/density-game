@@ -2,6 +2,13 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.9.1 — 2026-07-04
+
+- **New color system.** Terrain owns nature hues (river blue #005fcc, park green #4f9400); developers own artificial hues — Developer 1 amber (#ffd79a → #8a5a18), Developer 2 violet (#db8fff → #7000fa). Darker = denser, following sequential-map convention.
+- Why: the old palette had four collisions — both towers were purple (the win state was the most ambiguous pair on the board), P2 high-rise vs river were both blue, P2 mid-rise vs park were both green. Verified against deuteranopia/protanopia simulation; known accepted trade-off: violet tower vs river converge slightly under protanopia, mitigated by glyphs (buildings show numbers/★, rivers don't). Full rationale in the Notion Decision Log.
+- Refactor: all player/terrain colors now flow from P1_COLORS / P2_COLORS / RIVER_COLOR / PARK_COLOR constants via applyColorSystem() — legend swatches, build buttons, player dots, panel accents, win message, and river CSS var included. Colors turned out to live in eleven places, not four; now they live in one (same single-source pattern as the VERSION fix).
+- Bonus fix: error-message red was previously identical to P1's high-rise color; no longer a player color.
+
 ## v0.9 — 2026-07-03
 
 - **Rule change:** rivers now count as low-rise (level 1) neighbors for upgrade checks, instead of matching any density level (wild). Riverbanks still help early growth but no longer count toward high-rise or tower upgrades.
