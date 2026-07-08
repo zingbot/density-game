@@ -350,7 +350,7 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.13.5';
+const VERSION = 'v0.13.6';
 document.getElementById('version-label').textContent = VERSION;
 
 // Stale-build detector. A browser tab keeps running whatever version it
@@ -445,12 +445,13 @@ let aiDifficulty = 'medium';    // 'easy' | 'medium' | 'hard' — set from the l
 // Index by density 1–4; a tower (4) is effectively a win.
 const DENSITY_VALUE = [0, 1, 5, 15, 1000];
 // Difficulty personalities. topChoices = odds of playing the 1st/2nd/3rd best
-// move (Hard always plays the best). vigilance = chance per turn of running
-// the "does this leave the opponent an instant win?" check — Medium's lapses
-// are what make it beatable.
+// move (Hard always plays the best), but only among moves within `margin`
+// points of the best — variety, never blunders. vigilance = chance per turn
+// of running the "does this leave the opponent an instant win?" check —
+// Medium's occasional lapse is what keeps it beatable.
 const AI_STYLES = {
-  medium: { topChoices: [0.5, 0.3, 0.2], vigilance: 0.75 },
-  hard:   { topChoices: [1],             vigilance: 1 },
+  medium: { topChoices: [0.6, 0.25, 0.15], vigilance: 0.9, margin: 3 },
+  hard:   { topChoices: [1],               vigilance: 1,   margin: 0 },
 };
 // Diary of the computer's most recent decision — feeds the always-on
 // "Computer's reasoning" panel. Only ever describes what the brain actually
@@ -1091,6 +1092,11 @@ function chooseStrategicMove(player, style = AI_STYLES.hard) {
     if (res.winner === opp) { skippedLosers++; continue; }  // never hand the opponent a tower
 
     let score = evaluateBoard(sim.board, player) - evaluateBoard(sim.board, opp);
+    // Tie-break toward the board center (max ~0.95 — smaller than the 2 points
+    // one qualifying neighbor is worth, so it can only ever decide exact ties).
+    // Without this, early-game score plateaus resolve by scan order and the
+    // opening looks random.
+    score += (19 - (Math.abs(mv.r - 9.5) + Math.abs(mv.c - 9.5))) * 0.05;
     if (mv.type === 'park') {
       // Parks are scarce (only 3): require a real payoff to spend one.
       const myBoosts = res.boosted.filter(u => u.player === player).length;
@@ -1124,7 +1130,7 @@ function chooseStrategicMove(player, style = AI_STYLES.hard) {
     }
     scored.sort((a, b) => b.score - a.score);
   }
-  const chosen = pickAmongTop(scored, style.topChoices);
+  const chosen = pickAmongTop(scored, style.topChoices, style.margin);
   entry.picked = chosen.s.mv;
   entry.rank = chosen.rank;
   entry.best = scored[0].mv;
@@ -1134,13 +1140,15 @@ function chooseStrategicMove(player, style = AI_STYLES.hard) {
   return chosen.s.mv;
 }
 
-// Weighted pick among the best few moves (Medium's imperfect choice). Never
-// wanders into a move the threat check buried — variety shouldn't mean
-// blundering. Returns the scored entry plus its rank for the reasoning panel.
-function pickAmongTop(scored, weights) {
+// Weighted pick among the best few moves (Medium's imperfect choice). Only
+// moves within `margin` points of the best qualify — when scores diverge,
+// the 2nd/3rd rank can be a genuine blunder, so variety is limited to
+// near-equal moves. Never wanders into a move the threat check buried.
+// Returns the scored entry plus its rank for the reasoning panel.
+function pickAmongTop(scored, weights, margin = 0) {
   const pool = [scored[0]];
   for (let i = 1; i < Math.min(scored.length, weights.length); i++) {
-    if (scored[i].score > -500) pool.push(scored[i]);
+    if (scored[0].score - scored[i].score <= margin && scored[i].score > -500) pool.push(scored[i]);
   }
   let roll = Math.random();
   for (let i = 0; i < pool.length; i++) {

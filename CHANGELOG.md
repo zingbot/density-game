@@ -2,6 +2,13 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.13.6 — 2026-07-07
+
+- Retuned the Medium AI, which played near-randomly ("randomly placing cubes" — player report). Three compounding causes, all in tuning rather than a bug: early-game score ties made its "top 3 moves" arbitrary, its 2nd/3rd-choice variety had no quality floor (so off-choices could be real blunders), and it skipped the opponent-win safety check 1 turn in 4.
+- `pickAmongTop` now only offers variety among moves within a small score margin of the best (`margin` in `AI_STYLES`; 3 points for Medium — less than one qualifying neighbor's worth). Hard is unaffected (margin 0, always plays the best move).
+- Added a tiny center-proximity tie-break (max ~0.95 points, below the 2-point value of one qualifying neighbor) so score plateaus resolve toward the middle of the board instead of scan order — openings now look intentional for every difficulty.
+- Medium's vigilance raised 0.75 → 0.9 (misses a block ~1 turn in 10 instead of 1 in 4 — still its beatable flaw) and top-choice odds sharpened to 0.6/0.25/0.15.
+
 ## v0.13.5 — 2026-07-04
 
 - Added a stale-build detector: the game periodically re-checks the server for a newer published version and shows a "hard-refresh to update" banner when the open tab has fallen behind. Motivated by two same-day incidents of players unknowingly running different builds (the 3D-flatten bug persisting in an old tab, and the earlier "deployment issue" confusion). Checks on load and every 5 minutes; silently does nothing when offline or opened from a local file.
