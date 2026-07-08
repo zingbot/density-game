@@ -83,6 +83,54 @@
     .lobby-divider::before { left: 0; }
     .lobby-divider::after { right: 0; }
     .error-msg { font-size: 12px; color: #E24B4A; margin-top: 8px; text-align: center; }
+    /* ── Lobby background artwork (v0.13.7) ──
+       The artwork already carries the title and flanking characters, so the
+       plain-text header hides while it's active, and the real controls sit in
+       an opaque dark card over the artwork's center panel. The card forces
+       dark-theme variables regardless of OS color scheme — a white card on
+       this artwork would glow. The class comes off <body> when a game starts. */
+    body.lobby-bg {
+      background: #0d0b08 url('Images/lobby-bg.jpg') center / cover no-repeat;
+    }
+    body.lobby-bg h1, body.lobby-bg .subtitle { display: none; }
+    body.lobby-bg #lobby {
+      --bg-primary: #1d1812;
+      --bg-secondary: #2a2318;
+      --text-primary: #f0e8da;
+      --text-secondary: #c9bda6;
+      --text-tertiary: #94897a;
+      --border-primary: #6b5d45;
+      --border-secondary: #4a4032;
+      --border-tertiary: #35302a;
+      /* The artwork (1536×1024) has a menu PAINTED into its center panel
+         (image-pixel rect ≈ x 535–1003, y 212–975). The real card is placed
+         with the same math the browser uses for background-size: cover
+         (scale = max(100vw/1536, 100vh/1024)), plus a little bleed, so it
+         always sits exactly on top of the painted panel and hides it —
+         whatever the screen size. Fully opaque; card is a step darker than
+         the buttons/inputs so they read clearly. */
+      background: #100d09;
+      border: 1px solid rgba(250, 199, 117, 0.18);
+      border-radius: 14px;
+      padding: 24px 22px;
+      box-sizing: border-box;
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      top: max(12px, calc(50vh - max(20.96vw, 31.45vh) + 8px)); /* +8px: user-tuned alignment */
+      width: min(max(33.07vw, 49.61vh), 100vw);
+      max-width: none;
+      margin: 0;
+      min-height: min(max(52.08vw, 78.13vh), calc(100vh - 24px));
+      max-height: calc(100vh - 24px);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Flexible spacers: center the sections vertically inside the tall card,
+       but collapse to zero (keeping everything scrollable) on short screens. */
+    body.lobby-bg #lobby::before, body.lobby-bg #lobby::after { content: ''; flex: 1 0 0; }
+    body.lobby-bg #version-label { color: #94897a; }
     .difficulty-row { display: flex; gap: 6px; margin-bottom: 8px; }
     .diff-btn {
       flex: 1; padding: 8px; border-radius: var(--radius-md);
@@ -199,7 +247,7 @@
     #room-header .room-info strong { color: var(--text-secondary); letter-spacing: 1px; }
   </style>
 </head>
-<body>
+<body class="lobby-bg">
 <div id="game-root">
   <h1>Density</h1>
   <p class="subtitle">Two developers battle to build the first tower.</p>
@@ -350,7 +398,7 @@ try {
 } catch(e) { console.warn('Firebase init failed:', e); }
 
 // ─── GAME STATE ───
-const VERSION = 'v0.13.6';
+const VERSION = 'v0.13.7';
 document.getElementById('version-label').textContent = VERSION;
 
 // Stale-build detector. A browser tab keeps running whatever version it
@@ -533,6 +581,7 @@ function joinRoom() {
 function startOnlineGame() {
   isOnline = true;
   vsAI = false;
+  document.body.classList.remove('lobby-bg');
   document.getElementById('lobby').style.display = 'none';
   document.getElementById('game-area').style.display = 'block';
   document.getElementById('room-info').innerHTML = 'Room: <strong>' + roomCode + '</strong>';
@@ -570,6 +619,7 @@ function startLocalGame() {
   isOnline = false;
   vsAI = false;
   myPlayer = 0;
+  document.body.classList.remove('lobby-bg');
   document.getElementById('lobby').style.display = 'none';
   document.getElementById('game-area').style.display = 'block';
   document.getElementById('room-info').innerHTML = 'Local game';
@@ -587,6 +637,7 @@ function startAIGame() {
   isOnline = false;
   vsAI = true;
   myPlayer = 0;
+  document.body.classList.remove('lobby-bg');
   document.getElementById('lobby').style.display = 'none';
   document.getElementById('game-area').style.display = 'block';
   document.getElementById('room-info').innerHTML = 'vs Computer';

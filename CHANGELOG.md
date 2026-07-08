@@ -2,6 +2,11 @@
 
 All notable changes to the Density game are documented here.
 
+## v0.13.7 — 2026-07-07
+
+- The lobby now shows full-screen background artwork (two rival developers over a night skyline, `Images/lobby-bg.jpg`). The artwork carries the title, so the plain-text header hides on the lobby screen; the real controls sit in an opaque dark card (forced dark theme — a white card would glow against the art) over the artwork's center panel. The background comes off when a game starts; the in-game screen is unchanged.
+- First binary asset in the repo — the artwork was supplied as a 2.2 MB PNG and committed as a 235 KB JPEG so the page stays fast on phones. Note for GitHub Pages: the URL is case-sensitive (`Images/`, capital I).
+
 ## v0.13.6 — 2026-07-07
 
 - Retuned the Medium AI, which played near-randomly ("randomly placing cubes" — player report). Three compounding causes, all in tuning rather than a bug: early-game score ties made its "top 3 moves" arbitrary, its 2nd/3rd-choice variety had no quality floor (so off-choices could be real blunders), and it skipped the opponent-win safety check 1 turn in 4.
